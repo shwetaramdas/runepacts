@@ -12,7 +12,7 @@ import matplotlib
 import pylab
 
 #FUNCTIONS
-#this function just performs a filter on a column (or multiple columns) of a file by reading it in as a numpy table. 
+#this function just performs a filter on a column (or multiple columns) of a file by reading it in as a numpy table.
 def evalexpression(exprs, filetofilter):
 	exprs = exprs.strip()
 	print exprs
@@ -105,22 +105,37 @@ def evalexpression(exprs, filetofilter):
 #this function creates the required group file for epacts
 def create_group_file(outfilename, vcffilename, annofile, maffilterfile, maffilter, DELIM_MAF, DELIM_ANNO):
 	vcfname = vcffilename
-	trimmedvcf = vcfname.replace('.vcf.gz', '')+'_trimmed.txt'
+	trimmedvcf = options['OUTPREFIX'] + vcfname.replace('.vcf.gz', '').replace(options['INPUTDIR'] + '/',"")+'_trimmed.txt'
 
 	tofilter = False
 	if maffilterfile != 'NA':
 		tofilter = True
-		passsnps = dict()
 		maffile = pandas.read_table(maffilterfile,header=0,sep="\t")
 		snprowstokeep = evalexpression(maffilter, maffile)
 		passsnps = maffile.iloc[list(snpsrowstokeep),:]
 		passsnps = passsnps['SNP']
-
+	elif (maffilterfile == 'NA') and (maffilter != "NA"):	#in this case, we have to create an MAF file and then 
+		tofilter = True
+		print("filtering by MAF")
+		LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t filtering by MAF\n")
+		command = 'vcftools --gzvcf ' + options['INPUTDIR'] + "/" + options['VCFFILE'] + ' --keep '+ options['OUTPREFIX'] + 'samplestokeep.txt ' + '--freq2 --out ' + options['OUTPREFIX'] + '> /dev/null'
+		os.system(command)
+		LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + command + "\n")
+		command = 'zcat ' + options['INPUTDIR'] + "/" + options['VCFFILE'] + ' | grep -v "^##" | cut -f 1,2,3 > ' + options['OUTPREFIX'] + '.variantids.txt > /dev/null'
+		os.system(command)
+		maffile = pandas.read_table(options['OUTPREFIX'] + ".frq",skiprows=1,header=None)
+		allidsfile = pandas.read_table(options['OUTPREFIX'] + '.variantids.txt',header=0)
+		r1 = set(maffile.index[maffile[maffile.columns[5]] < float(maffilter)])
+		r2 = set(maffile.index[maffile[maffile.columns[5]] > (1 - float(maffilter))])
+		rowstokeep = r1.union(r2)
+		maffile = maffile.iloc[list(rowstokeep)]
+		passsnps = pandas.merge(maffile, allidsfile,left_on = [maffile.columns[0], maffile.columns[1]], right_on = [allidsfile.columns[0], allidsfile.columns[1]],how='inner')
+		passsnps = list(passsnps['ID'])
 	#make a bed file containing only the positions you need
 	genes = []
 	snps = []
 	numline = 0
-	bedfile = open(vcfname.replace('.vcf.gz', '') + '_trimmed.bed',"w")
+	bedfile = open(options['OUTPREFIX'] + vcfname.replace('.vcf.gz', '').replace(options['INPUTDIR'] + '/', '') + '_trimmed.bed',"w")
 
 	#this is the annotation file with the group names (gene names)
 	if 'gz' in annofile:
@@ -141,11 +156,10 @@ def create_group_file(outfilename, vcffilename, annofile, maffilterfile, maffilt
 				bedfile.write(temp[1].split(':')[0] + "\t" + temp[1].split(':')[1] + "\t" + str(int(temp[1].split(':')[1])+1) + "\n")
 	filename.close()
 	bedfile.close()
-	tabixcommand = 'tabix ' + vcfname + ' -B ' + vcfname.replace('.vcf.gz', '') + '_trimmed.bed | grep -v "#" > ' + trimmedvcf
+	tabixcommand = 'tabix ' + vcfname + ' -B ' + options['OUTPREFIX'] + vcfname.replace('.vcf.gz', '').replace(options['INPUTDIR'] + '/', '') + '_trimmed.bed | grep -v "#" > ' + trimmedvcf
 	print(tabixcommand)
 	os.system(tabixcommand)
-	#tabixresults = subprocess.Popen(tabixcommand,shell=True, stdout=subprocess.PIPE)
-	print("here")
+	
 	LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + "finished creating trimmed vcf\n")
 	genes = numpy.asarray(genes)
 	snps = numpy.asarray(snps)
@@ -154,13 +168,11 @@ def create_group_file(outfilename, vcffilename, annofile, maffilterfile, maffilt
 	#opening in the trimmed vcf file and reading in snp information and storing it in the dictionary snpinfo
 	vcffile = open(trimmedvcf)
 	snpinfo = dict()
-#	line = tabixresults.stdout.readline()
 	for line in vcffile:
 		temp = line.split()
 		snpinfo[temp[2]] = temp[0]+":"+temp[1]+"_"+temp[3]+'/'+temp[4]
-#		line = tabixresults.stdout.readline()
 	vcffile.close()
-#	del tabixresults
+
 	print("SNP Info obtained\n")
 	LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + "SNP info obtained\n")
 	#now sort geneinfo by gene names
@@ -181,9 +193,6 @@ def create_group_file(outfilename, vcffilename, annofile, maffilterfile, maffilt
 				variants[geneinfo[i,0]] = variants[geneinfo[i,0]]+"\t"+snpinfo[geneinfo[i,1]]
 		i = i + 1
 
-#	outname = annofile
-#	outname = annofile.replace('.gz','').replace('.txt','')
-#	outname = outname + vcffilename.replace('.vcf.gz','').replace('.txt','').split('/')[1]
 	outname = outfilename
 	print outname
 	out = open(outname, 'w') #file to which to write annotations
@@ -259,7 +268,7 @@ defaults['VCFFILE'] = '999'
 defaults['PEDFILE'] = '999'
 defaults['FILTERPED'] = '999'
 defaults['ANNOTFILE'] = '999'
-defaults['FILTERMAF'] = '999'
+defaults['FILTERMAF'] = 'NA'
 defaults['MAFFILE'] = '999'
 defaults['GROUPFILE'] = '999'
 defaults['KINSHIPFILE'] = '999'
@@ -336,6 +345,8 @@ while line_num < int(lines_in_file):
 		defaults['INPUTDIR'] = options['INPUTDIR']
 	if 'SINGLEMARKERTEST' in options.keys():
 		defaults['SINGLEMARKERTEST'] = options['SINGLEMARKERTEST']
+	if 'FILTERMAF' in options.keys():
+		defaults['FILTERMAF'] = options['FILTERMAF']
 	if 'PVALUETHRESHOLD' in options.keys():
 		PVALUETHRESHOLD = options['PVALUETHRESHOLD']
 	else:
@@ -432,7 +443,7 @@ while line_num < int(lines_in_file):
 	if not os.path.exists(defaults['INPUTDIR'] + '/' + options['VCFFILE'] + '.tbi'):
 		print("Indexing vcf. Warning: This may take longer for large VCFs\n")
 		LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + "Indexing vcf\n")
-		tabix_command = 'tabix -pvcf -f ' + defaults['INPUTDIR'] + '/' + options['VCFFILE']
+		tabix_command = 'tabix -pvcf -f ' + defaults['INPUTDIR'] + '/' + options['VCFFILE'] + " > /dev/null"
 		os.system(tabix_command)
 		LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + tabix_command + "\n")
 
@@ -451,6 +462,8 @@ while line_num < int(lines_in_file):
 		filter = options['FILTERPED']
 		filteredrows = evalexpression(filter, pedfile)
 		pedfile = pedfile.iloc[list(filteredrows),:]
+	pedfile[pedfile.columns[1]].to_csv(options['OUTPREFIX']+"samplestokeep.txt", sep="\t",index=False, na_rep='NA')
+	
 	if len(pedcolumns) > 0:
 		if len(covariates) > 0:
 			for i in range(0,len(covariates)):
@@ -523,11 +536,11 @@ while line_num < int(lines_in_file):
 			print("still filtering...\n")
 			if 'MAFFILE' not in options.keys():
 				create_group_file(options['OUTPREFIX'] + '_groups.txt', defaults['INPUTDIR'] + '/' + defaults['VCFFILE'], \
-								defaults['INPUTDIR'] + '/' + options['ANNOTFILE'].replace('.gz', '') + '.filtered.txt', 'NA', 'NA', DELIM_MAF, DELIM_ANNO)
+								defaults['INPUTDIR'] + '/' + options['ANNOTFILE'].replace('.gz', '') + '.filtered.txt', 'NA', defaults['FILTERMAF'], DELIM_MAF, DELIM_ANNO)
 			else:
 				create_group_file(options['OUTPREFIX'] + '_groups.txt',defaults['INPUTDIR'] + '/' + options['VCFFILE'], \
 								defaults['INPUTDIR'] + '/' + options['ANNOTFILE'].replace('.gz', '') + '.filtered.txt', \
-								defaults['INPUTDIR'] + '/' + options['MAFFILE'] , options['FILTERMAF'], DELIM_MAF, DELIM_ANNO)
+								defaults['INPUTDIR'] + '/' + options['MAFFILE'] , defaults['FILTERMAF'], DELIM_MAF, DELIM_ANNO)
 			command = 'rm ' + defaults['INPUTDIR'] + '/temp'
 			os.system(command)
 		else:
@@ -536,9 +549,8 @@ while line_num < int(lines_in_file):
 								defaults['INPUTDIR'] + '/' + defaults['ANNOTFILE'], 'NA', 'NA', DELIM_MAF, DELIM_ANNO)
 			else:
 				create_group_file(options['OUTPREFIX'] + '_groups.txt', defaults['INPUTDIR'] + '/' + defaults['VCFFILE'], \
-								defaults['INPUTDIR'] + '/' + defaults['MAFFILE'], options['FILTERMAF'], DELIM_MAF, DELIM_ANNO)
+								defaults['INPUTDIR'] + '/' + defaults['MAFFILE'], defaults['FILTERMAF'], DELIM_MAF, DELIM_ANNO)
 
-		os.system('mv ' + defaults['INPUTDIR'] + '/' + defaults['ANNOTFILE'].replace('.gz','').replace('.txt','') + '.filtered' + defaults['VCFFILE'].replace('.vcf.gz','').replace('.txt','') + '_groups.txt ' + defaults['INPUTDIR'] + '/' + re.sub('.*/','',options['OUTPREFIX']) + '_groups.txt')
 		finalgroupfilename = options['OUTPREFIX'] + '_groups.txt'
 	else:
 		finalgroupfilename = defaults['INPUTDIR'] + '/' + defaults['GROUPFILE']
@@ -602,19 +614,19 @@ while line_num < int(lines_in_file):
 	allgenesoutput = output
 	output = output[output.PVALUE <= float(PVALUETHRESHOLD)]
 
-	print(output)
-	#if output is empty, then create empty single marker file? 
+	#if output is empty, then create empty single marker file?
 	
 	#now format the output you get
 	print(MINVARS)
 	print(MINMAC)
 	singlemarkertest = 'false'
 
-	if ('SINGLEMARKERTEST' not in options) or (options['SINGLEMARKERTEST'] == 'TRUE'):
-		singlemarkertest = 'false'
+	if ('SINGLEMARKERTEST' not in options) or (options['SINGLEMARKERTEST'] != 'FALSE'):
+		singlemarkertest = 'true'
 		#get the variants in each gene if test if not VT
 		genes = output['MARKER_ID']
 		genes = genes.drop_duplicates()
+		print(finalgroupfilename)
 		groupfile = open(finalgroupfilename)
 		markerlistforgenes = dict()
 		print("Reading groupfile\n")
@@ -628,7 +640,6 @@ while line_num < int(lines_in_file):
 			for tempindex in range(0,len(temp)):
 				temp[tempindex] = re.sub(r"_.*","",temp[tempindex])
 			markerlistforgenes[genename] = temp
-		LOGFILE.write(str(len(markerlistforgenes.keys())) + "\n")
 		groupfile.close()
 
 		os.system('zcat ' + defaults['INPUTDIR'] + '/' + defaults['VCFFILE'] + ' | grep -m 1 "#CHROM" > ' + options['OUTPREFIX'] + '.singlemarkers.vcf')
@@ -720,7 +731,6 @@ while line_num < int(lines_in_file):
 				continue
 			for marker in markerlistforgenes[genename]:
 				markerresult = singlemarkerresults[singlemarkerresults.MARKER_ID == marker]
-				print(markerresult.MAC[markerresult.MAC.index[0]])
 				mac = mac + markerresult.MAC[markerresult.MAC.index[0]]
 				if (len(markerresult) > 0) & (markerresult['PVALUE'] >=0):
 					genotypes = singlemarkervcfs.loc[marker]
@@ -765,8 +775,6 @@ while line_num < int(lines_in_file):
 #		variants = variants[geneswithvalidmac.GROUP == 1]
 		
 		if 'ANNOTCOLUMNS' in options:
-			print(annotation.columns[0])
-			print(annotation.columns)
 			columns = options['ANNOTCOLUMNS'].split(",")
 			annonum = 0
 			colnum = 0
@@ -816,10 +824,10 @@ while line_num < int(lines_in_file):
 	teststowrite = teststowrite.strip(",")
 	
 	if len(covariates) > 0:
-		os.system("R --vanilla --slave --args "+ ' variants.txt ' + phenotype + ' ' + options['OUTPREFIX'] + ' ' + teststowrite + ' ' + str(PVALUETHRESHOLD) + " " + options['MODEL'].split('~')[1] + ' < lattice.multiplegenes2.R')
+		os.system("R --vanilla --slave --args "+ options['OUTPREFIX'] + '.variants.txt ' + phenotype + ' ' + options['OUTPREFIX'] + ' ' + teststowrite + ' ' + str(PVALUETHRESHOLD) + " " + options['MODEL'].split('~')[1] + ' < lattice.multiplegenes2.R')
 		LOGFILE.write("R --vanilla --slave --args "+ options['OUTPREFIX'] + '.variants.txt ' + phenotype + ' ' + options['OUTPREFIX'] + ' ' + teststowrite + ' ' + str(PVALUETHRESHOLD) + ' "' + options['MODEL'].split('~')[1] + '" < lattice.multiplegenes2.R')
 	else:
-		os.system("R --vanilla --slave --args "+ ' variants.txt ' + phenotype + ' ' + options['OUTPREFIX'] + ' ' + teststowrite + ' ' + str(PVALUETHRESHOLD) + " " + 'NA' + ' < lattice.multiplegenes2.R')
+		os.system("R --vanilla --slave --args "+ options['OUTPREFIX'] + '.variants.txt ' + phenotype + ' ' + options['OUTPREFIX'] + ' ' + teststowrite + ' ' + str(PVALUETHRESHOLD) + " " + 'NA' + ' < lattice.multiplegenes2.R')
 		LOGFILE.write("R --vanilla --slave --args "+ options['OUTPREFIX'] + '.variants.txt ' + phenotype + ' ' + options['OUTPREFIX'] + ' ' + teststowrite + ' ' + str(PVALUETHRESHOLD) + ' ' + 'NA '+ ' < lattice.multiplegenes2.R')
 	############
 	line = configfile.readline()
