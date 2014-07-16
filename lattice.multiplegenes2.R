@@ -23,7 +23,7 @@ qqunif.plot<-function(pvalues,
 	} else {
 		if (any(unlist(pvalues)<0)) stop("-log10 pvalue vector contains negative values, can't draw plot")
 	}
- 
+
 	grp<-NULL
 	n<-1
 	exp.x<-c()
@@ -59,8 +59,8 @@ qqunif.plot<-function(pvalues,
 			exp.x <- -log10((n-rank(pvalues, ties.method="first")-.5)/n)
 		}
 	}
- 
- 
+
+
 	#this is a helper function to draw the confidence interval
 	panel.qqconf<-function(n, conf.points=1000, conf.col="gray", conf.alpha=.05, ...) {
 		require(grid)
@@ -342,7 +342,7 @@ allvariants = read.table(paste(prefix, '.allvariants.txt',sep=''),sep="\t",strin
 
 #phenotypes
 phenos = read.table(paste(prefix,".pheno.ped",sep=""), comment.char="", header=T,stringsAsFactors=F)
-merged = merge(variants, phenos, by.x = 'IND', by.y = 'IND_ID')
+merged = merge(allvariants, phenos, by.x = 'IND', by.y = 'IND_ID')
 phenotypes =  as.numeric(phenos[!is.na(phenos[phenotype]),phenotype])
 phenotypemean = mean(phenotypes)
 
@@ -355,7 +355,7 @@ if(covariates != 'NA'){
 }
 
 #number of columns to add to the pdf on the right columns
-columnstoannotate = variants
+columnstoannotate = allvariants
 columnstoannotate$GROUP = NULL
 columnstoannotate$MARKER_ID = NULL
 columnstoannotate$MARKERNAME = NULL
@@ -378,12 +378,11 @@ if(ncol(columnstoannotate) > 0){
 	}
 	lengthextracolumns = lengthextracolumns[-1]
 }
-print(lengthextracolumns)
 
 #for each test, get the epacts burden test results and put them all in a data frame called epacts1
-for(i in 1:length(tests)){
-	print(tests[[i]])
-	epacts1 = read.table(paste(prefix, '.', tests[[i]] ,".epacts",sep=""),header=T, comment.char="",stringsAsFactors=F)
+
+for(i in 1:length(tests[[1]])){
+	epacts1 = read.table(paste(prefix, '.', tests[[1]][i] ,".epacts",sep=""),header=T, comment.char="",stringsAsFactors=F)
 	if(!('BEGIN' %in% colnames(epacts1))){
 		colnum = which(colnames(epacts1) == 'BEG')
 		colnames(epacts1)[colnum] = 'BEGIN'
@@ -391,16 +390,16 @@ for(i in 1:length(tests)){
 	if(i == 1){
 		epacts = epacts1;
 		genepvalues = epacts1[,c('MARKER_ID', 'PVALUE')]
-		genepvalues['TEST'] = tests[i]
+		genepvalues['TEST'] = tests[[1]][i]
 	}else{
 		genepvalues1 = epacts1[,c('MARKER_ID', 'PVALUE')]
-		genepvalues1['TEST'] = tests[[i]]
+		genepvalues1['TEST'] = tests[[1]][i]
 		genepvalues = rbind(genepvalues, genepvalues1)
-		epacts[tests[i]] = epacts1['PVALUE']
+		epacts[tests[[1]][i]] = epacts1['PVALUE']
 	}
 }
-merged = merge(merged, epacts, by.x = 'GROUP', by.y = 'MARKER_ID')
 
+merged = merge(merged, epacts, by.x = 'GROUP', by.y = 'MARKER_ID')
 
 #sort by BETA, then by pvalue for the gene, then by pvalue of the individual markers
 if('BETA' %in% colnames(merged)){
@@ -423,6 +422,7 @@ if (length(unique(phenotypes)) == 2){
 }
 
 if(categorical == 0){				#quantitative phenotype
+		print("Quantitative phenotype")
 		numgenestoinclude = 0
 		totalvariants = 0
 		length_longest_variant = 0
@@ -430,10 +430,12 @@ if(categorical == 0){				#quantitative phenotype
 		longest_beta = ""
 		longest_mac = ""
 
+		#
 		for(genenum in 1:length(genes)){
 			gene = genes[genenum]
 			rowstoplot = merged[merged$'GROUP' == gene,]
 			num_variants = length(unique(rowstoplot$'MARKER_ID'))
+			
 			totalvariants = totalvariants + num_variants
 			markersingene = unique(rowstoplot$'MARKER_ID')
 			if((numgenestoinclude == 0) || (totalvariants <= 40)){
@@ -451,13 +453,14 @@ if(categorical == 0){				#quantitative phenotype
 				if(nchar(l) > nchar(longest_mac)){longest_mac = l;}
 			}
 		}
+
 		if(numgenestoinclude > 1){
 			totalvariants = min(totalvariants, 40)
 		}
 
 		numgenesplotted = 0
 		numiter = 1
-
+		print("Creating PDF...")
 		pdf(paste(prefix,".topgenes",'.pdf',sep=""), width = 11, height = 8.5)
 		widthinches = unit(11, "inches")
 		maxwidth = convertUnit(widthinches, "char")
@@ -525,32 +528,36 @@ if(categorical == 0){				#quantitative phenotype
 			upViewport(1);
 		}
 
-		for(i in 1:length(tests)){
-			test = tests[[i]]
-			
+		for(i in 1:length(tests[[1]])){
+			test = tests[[1]][i]
 			#plot qq plot
 			#par(mfrow = c(1,2))
-			masterlayout = grid.layout(
-				nrow = 1, 
-				ncol = 3,
-				widths = unit.c(unit(0.47, "npc"), unit(0.07, "npc"), unit(0.47, "npc"))
-			)
-			vp1 = viewport(layout.pos.col = 1, name="vp1")
-			vp2 = viewport(layout.pos.col = 3, name="vp2")
-			vp3 = viewport(layout.pos.col = 2, name="vp3")
-			epactsfortest = read.table(paste(prefix,'.', tests[[i]] ,".epacts",sep=""),header=T, comment.char="",stringsAsFactors=F)
+			if(i == 1){
+				masterlayout = grid.layout(
+					nrow = 1, 
+					ncol = 3,
+					widths = unit.c(unit(0.47, "npc"), unit(0.07, "npc"), unit(0.47, "npc"))
+				)
+				vp1 = viewport(layout.pos.col = 1, name="vp1")
+				vp2 = viewport(layout.pos.col = 3, name="vp2")
+				vp3 = viewport(layout.pos.col = 2, name="vp3")
+			}
+			epactsfortest = read.table(paste(prefix,'.', tests[[1]][i] ,".epacts",sep=""),header=T, comment.char="",stringsAsFactors=F)
 			if (!('BEGIN' %in% colnames(epactsfortest))){
 				colnum = which(colnames(epactsfortest) == 'BEG')
 				colnames(epactsfortest)[colnum] = 'BEGIN'
 			}
-			filteredresults = epactsfortest
+			#get genes
+			
+			genespassingfilters = read.table(paste(prefix,'.genespassingfilters.txt',sep=""),header=T,stringsAsFactors=F)
+			filteredresults = merge(epactsfortest, genespassingfilters, by.x='MARKER_ID', by.y='X0',sort=F)
 			
 			#plotting all variants
 			variantstoplot = epactsfortest['PVALUE']
 			toplot = variantstoplot['PVALUE']
 			toplot = toplot[!is.na(toplot)]
 			qq1plot = toplot
-			qq1.plot = qqunif.plot(toplot, main=paste("Unfiltered QQ Plot\n", phenotype, "\nNo. Samples=", length(phenotypes) ,", No. Genes=",length(toplot),sep=""),cex.main=0.5)
+			qq1.plot = qqunif.plot(toplot, main=paste("Test: ", test, " Unfiltered QQ Plot\n", phenotype, "\nNo. Samples=", length(phenotypes) ,", No. Genes=",length(toplot),sep=""),cex.main=0.5)
 			#update(qq.plot,par.settings = list(fontsize = list(text = 10, points = 8)))
 
 			#plotting filtered variants
@@ -558,7 +565,7 @@ if(categorical == 0){				#quantitative phenotype
 			toplot = unique(toplot)
 			toplot = toplot[,2]
 			toplot = toplot[!is.na(toplot)]
-			qq2.plot = qqunif.plot(toplot, main=paste("Filtered QQ Plot\n", phenotype, "\nNo. Samples=", length(phenotypes) ,", No. Genes=",length(toplot),sep=""),cex.main=0.5)
+			qq2.plot = qqunif.plot(toplot, main=paste("Test: ", test, " Filtered QQ Plot\n", phenotype, "\nNo. Samples=", length(phenotypes) ,", No. Genes=",length(toplot),sep=""),cex.main=0.5)
 
 			grid.newpage()
 			pushViewport(vpTree(viewport(layout = masterlayout,name="master"), vpList(vp1, vp2)))
@@ -583,7 +590,7 @@ if(categorical == 0){				#quantitative phenotype
 			toplot = cbind(as.numeric(variantstoplot[,1]), variantstoplot[,2], variantstoplot['PVALUE'])
 			toplot = toplot[order(toplot[,1], toplot[,2]),]
 			temppp = toplot
-			mhtplot = manhattan.plot(toplot[[1]], toplot[[2]], toplot[[3]], sig.level=2e-6,main=paste("Unfiltered. ",phenotype, ", No. Samples=",length(phenotypes),", No. Genes=",nrow(toplot),sep=""))
+			mhtplot = manhattan.plot(toplot[[1]], toplot[[2]], toplot[[3]], sig.level=2e-6,main=paste("Test: ", test, " Unfiltered. ",phenotype, ", No. Samples=",length(phenotypes),", No. Genes=",nrow(toplot),sep=""))
 		#	update(mhtplot,par.settings = list(fontsize = list(text = 15, points = 8)))
 			print(mhtplot)
 			
@@ -596,15 +603,12 @@ if(categorical == 0){				#quantitative phenotype
 			toplot[,1] = as.numeric(toplot[,1])
 			toplot[,2] = as.numeric(toplot[,2])
 			toplot = toplot[order(toplot[,1], toplot[,2]),]
-			mhtplot = manhattan.plot(toplot[,1], toplot[,2], toplot[,3], sig.level=2e-6,main=paste("Filtered ", phenotype, ", No. Samples=",length(phenotypes),", No. Genes=",nrow(toplot),sep=""))
+			mhtplot = manhattan.plot(toplot[,1], toplot[,2], toplot[,3], sig.level=2e-6,main=paste("Test: ", test, " Filtered ", phenotype, ", No. Samples=",length(phenotypes),", No. Genes=",nrow(toplot),sep=""))
 		#	update(mhtplot,par.settings = list(fontsize = list(text = 15, points = 8)))
 			print(mhtplot)
 		}
 
-		print(allgenes)
 		while(numgenesplotted < totalgenes){
-		#	print("Outputting genes part 1...")
-
 			numgenesplotted = numgenesplotted + numgenestoinclude
 			genes = genes[1:numgenestoinclude]
 			
@@ -690,8 +694,8 @@ if(categorical == 0){				#quantitative phenotype
 			macheader = addspaces("MAC",longest_mac)
 			
 			testheader = ''
-			for(testnum in 1:length(tests)){
-				curtest = tests[[testnum]]
+			for(testnum in 1:length(tests[[1]])){
+				curtest = tests[[1]][testnum]
 				curtest = addspaces(curtest, '4.0e-07 ')
 				testheader = paste(testheader, curtest, sep=" ")
 			}
@@ -730,7 +734,7 @@ if(categorical == 0){				#quantitative phenotype
 				for (i in 1:num_variants) {
 					j = j + 1
 					this_variant = markersingene[i];
-					markerrows = rowstoplot[rowstoplot$'MARKER_ID' == this_variant,]
+					markerrows = rowstoplot[rowstoplot	$'MARKER_ID' == this_variant,]
 					this_pvalue = sprintf("%0.3g", markerrows$'PVALUE.x'[1])
 					this_maf = round(markerrows$'MAF'[1],digits=3)
 					this_mac = markerrows$'MAC'[1]
@@ -741,7 +745,7 @@ if(categorical == 0){				#quantitative phenotype
 					if(rare_geno == '0/1'){
 						rare_geno = '-999';
 					}
-					
+
 					if(nchar(this_pvalue) < 8){
 						chars_to_add = 8 - nchar(this_pvalue)
 						for(chartoadd in 1:chars_to_add){
@@ -910,7 +914,7 @@ if(categorical == 0){				#quantitative phenotype
 if(categorical == 1){
 	pheno1 = unique(phenotypes)[1]
 	pheno2 = unique(phenotypes)[2]
-	tabletowrite = matrix(ncol =10  , nrow = length(genes)*length(unique(merged$'MARKER_ID')))
+	tabletowrite = matrix(ncol =10  , nrow = length(genes)*length(unique(merged$'MARKER')))
 	
 	j = 0
 	for(genenum in 1:length(genes)){
