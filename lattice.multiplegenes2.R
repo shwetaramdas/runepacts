@@ -326,6 +326,7 @@ addspaces <- function(string, maxstring){
 #get arguments from input
 arguments = commandArgs(trailingOnly=TRUE)
 variants = read.table(arguments[1], header=T,stringsAsFactors=FALSE)
+variants$PVALUE = as.numeric(variants$PVALUE)
 phenotype = arguments[2]
 
 prefix = arguments[3]				#this is the argument for the prefix of the filename to read
@@ -340,9 +341,9 @@ summaryfile = read.table(paste(prefix,'.summary.txt',sep=''),sep="\t",stringsAsF
 allvariants = read.table(paste(prefix, '.allvariants.txt',sep=''),sep="\t",stringsAsFactors=FALSE,header=T)
 
 #phenotypes
-phenos = read.table(paste(prefix,".pheno.ped",sep=""), comment.char="", header=T)
+phenos = read.table(paste(prefix,".pheno.ped",sep=""), comment.char="", header=T,stringsAsFactors=F)
 merged = merge(variants, phenos, by.x = 'IND', by.y = 'IND_ID')
-phenotypes =  phenos[!is.na(phenos[phenotype]),phenotype]
+phenotypes =  as.numeric(phenos[!is.na(phenos[phenotype]),phenotype])
 phenotypemean = mean(phenotypes)
 
 #get phenotype residuals if covariates are given, else set phenotype residuals to phenotypes
@@ -381,6 +382,7 @@ print(lengthextracolumns)
 
 #for each test, get the epacts burden test results and put them all in a data frame called epacts1
 for(i in 1:length(tests)){
+	print(tests[[i]])
 	epacts1 = read.table(paste(prefix, '.', tests[[i]] ,".epacts",sep=""),header=T, comment.char="",stringsAsFactors=F)
 	if(!('BEGIN' %in% colnames(epacts1))){
 		colnum = which(colnames(epacts1) == 'BEG')
@@ -413,7 +415,6 @@ allgenes = unique(allgenes)
 genes = merged[,c('GROUP', 'PVALUE.x')]
 genes = genes[order(genes[,2]),]
 genes = unique(genes[,1])
-print(genes)
 totalgenes = length(genes)
 
 categorical = 0
@@ -526,6 +527,7 @@ if(categorical == 0){				#quantitative phenotype
 
 		for(i in 1:length(tests)){
 			test = tests[[i]]
+			
 			#plot qq plot
 			#par(mfrow = c(1,2))
 			masterlayout = grid.layout(
@@ -587,6 +589,7 @@ if(categorical == 0){				#quantitative phenotype
 			
 			##draw filtered manhattan plot
 			toplot = filteredresults[,c('X.CHROM', 'BEGIN','PVALUE','MARKER_ID')]
+			toplot = toplot[which(!is.na(toplot[,3])),]
 			toplot = unique(toplot)
 			if (length(which(toplot[,1] == 'X')) > 0){toplot[which(toplot[,1] == 'X'),1] = '23';}
 			if (length(which(toplot[,1] == 'Y')) > 0){toplot[which(toplot[,1] == 'Y'),1] = '24';}
@@ -763,14 +766,16 @@ if(categorical == 0){				#quantitative phenotype
 					grid.rect();
 
 					# Get the phenotype values for just those people with the rare genotype and hets. 
-					rare_pheno = markerrows[markerrows['GENOTYPE'] == rare_geno,phenotype]
-					hets_pheno = markerrows[markerrows['GENOTYPE'] == '0/1',phenotype]
+					rare_pheno = as.numeric(markerrows[markerrows['GENOTYPE'] == rare_geno,phenotype])
+					hets_pheno = as.numeric(markerrows[markerrows['GENOTYPE'] == '0/1',phenotype])
 					
 					rare_pheno = rare_pheno[!is.na(rare_pheno)]
 					hets_pheno = hets_pheno[!is.na(hets_pheno)]			
-
-					meanpheno_variant = (sum(rare_pheno) + sum(hets_pheno))/(length(rare_pheno) + length(hets_pheno))
-					
+					if (length(rare_pheno) > 0){
+						meanpheno_variant = (sum(rare_pheno) + sum(hets_pheno))/(length(rare_pheno) + length(hets_pheno))
+					}else{
+						meanpheno_variant = (sum(hets_pheno))/(length(hets_pheno))
+					}
 					# Ignore the variant if it only had 1 genotype.
 					if (!length(unique(markerrows$'GENOTYPE')) == 1) {
 						if(length(hets_pheno) > 0){
@@ -958,4 +963,5 @@ if(categorical == 1){
 			tabletowrite[j,10] = case2_het
 		}
 		write.table(tabletowrite, file=paste(prefix, ".topgenes.txt",sep=''), quote=FALSE, col.names=F, row.names=F)
+	}
 }
