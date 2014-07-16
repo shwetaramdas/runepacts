@@ -121,9 +121,10 @@ def create_group_file(outfilename, vcffilename, annofile, maffilterfile, maffilt
 		command = 'vcftools --gzvcf ' + options['INPUTDIR'] + "/" + options['VCFFILE'] + ' --keep '+ options['OUTPREFIX'] + 'samplestokeep.txt ' + '--freq2 --out ' + options['OUTPREFIX'] + '> /dev/null'
 		os.system(command)
 		LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + command + "\n")
-		command = 'zcat ' + options['INPUTDIR'] + "/" + options['VCFFILE'] + ' | grep -v "^##" | cut -f 1,2,3 > ' + options['OUTPREFIX'] + '.variantids.txt > /dev/null'
+		command = 'zcat ' + options['INPUTDIR'] + "/" + options['VCFFILE'] + ' | grep -v "^##" | cut -f 1,2,3 > ' + options['OUTPREFIX'] + '.variantids.txt'
 		os.system(command)
 		maffile = pandas.read_table(options['OUTPREFIX'] + ".frq",skiprows=1,header=None)
+		
 		allidsfile = pandas.read_table(options['OUTPREFIX'] + '.variantids.txt',header=0)
 		r1 = set(maffile.index[maffile[maffile.columns[5]] < float(maffilter)])
 		r2 = set(maffile.index[maffile[maffile.columns[5]] > (1 - float(maffilter))])
@@ -131,6 +132,7 @@ def create_group_file(outfilename, vcffilename, annofile, maffilterfile, maffilt
 		maffile = maffile.iloc[list(rowstokeep)]
 		passsnps = pandas.merge(maffile, allidsfile,left_on = [maffile.columns[0], maffile.columns[1]], right_on = [allidsfile.columns[0], allidsfile.columns[1]],how='inner')
 		passsnps = list(passsnps['ID'])
+		
 	#make a bed file containing only the positions you need
 	genes = []
 	snps = []
@@ -156,7 +158,7 @@ def create_group_file(outfilename, vcffilename, annofile, maffilterfile, maffilt
 				bedfile.write(temp[1].split(':')[0] + "\t" + temp[1].split(':')[1] + "\t" + str(int(temp[1].split(':')[1])+1) + "\n")
 	filename.close()
 	bedfile.close()
-	tabixcommand = 'tabix ' + vcfname + ' -B ' + options['OUTPREFIX'] + vcfname.replace('.vcf.gz', '').replace(options['INPUTDIR'] + '/', '') + '_trimmed.bed | grep -v "#" > ' + trimmedvcf
+	tabixcommand = 'tabix ' + vcfname + ' -B ' + options['OUTPREFIX'] + vcfname.replace('.vcf.gz', '').replace(options['INPUTDIR'] + '/', '') + '_trimmed.bed | grep -v "#" > ' + trimmedvcf 
 	print(tabixcommand)
 	os.system(tabixcommand)
 	
@@ -283,7 +285,7 @@ defaults['MAXMAF'] = 1
 defaults['EPACTSGROUPFILE'] = 'NA'
 
 ##open log file to write to
-LOGFILE = open("runepacts.log", "w")
+LOGFILE = open("runepacts_" +  time.asctime(time.localtime(time.time())).replace(" ","_") + ".log", "w")
 numtests = 0
 TESTS = []
 
@@ -429,14 +431,14 @@ while line_num < int(lines_in_file):
 		minmaf = ' -min-maf ' + str(defaults['MINMAF'])
 	
 	if 'MINMAC' in options.keys():
-		minmac = '-min-mac ' + str(options['MINMAC'])
+		minmac = ' -min-mac ' + str(options['MINMAC'])
 	else:
-		minmac = '-min-mac ' + str(defaults['MINMAC'])
+		minmac = ' -min-mac ' + str(defaults['MINMAC'])
 	
 	if 'MAXMAF' in options.keys():
-		maxmaf = '--max-maf ' + str(options['MAXMAF'])
+		maxmaf = ' -max-maf ' + str(options['MAXMAF'])
 	else:
-		maxmaf = '--max-maf ' + str(defaults['MAXMAF'])
+		maxmaf = ' -max-maf ' + str(defaults['MAXMAF'])
 	############################################################################
 	
 	#First step: Index vcffile if indexed file does not already exist
@@ -541,8 +543,7 @@ while line_num < int(lines_in_file):
 				create_group_file(options['OUTPREFIX'] + '_groups.txt',defaults['INPUTDIR'] + '/' + options['VCFFILE'], \
 								defaults['INPUTDIR'] + '/' + options['ANNOTFILE'].replace('.gz', '') + '.filtered.txt', \
 								defaults['INPUTDIR'] + '/' + options['MAFFILE'] , defaults['FILTERMAF'], DELIM_MAF, DELIM_ANNO)
-			command = 'rm ' + defaults['INPUTDIR'] + '/temp'
-			os.system(command)
+
 		else:
 			if 'MAFFILE' not in options.keys():
 				create_group_file(options['OUTPREFIX'] + '_groups.txt', defaults['INPUTDIR'] + '/' + defaults['VCFFILE'], \
@@ -621,6 +622,9 @@ while line_num < int(lines_in_file):
 	print(MINMAC)
 	singlemarkertest = 'false'
 
+	#get minvars and minmac
+	genespassingfilters = dict()
+
 	if ('SINGLEMARKERTEST' not in options) or (options['SINGLEMARKERTEST'] != 'FALSE'):
 		singlemarkertest = 'true'
 		#get the variants in each gene if test if not VT
@@ -642,6 +646,34 @@ while line_num < int(lines_in_file):
 			markerlistforgenes[genename] = temp
 		groupfile.close()
 
+		maccommand = 'vcftools --gzvcf ' + options['INPUTDIR'] + '/' + defaults['VCFFILE'] + ' --counts --out ' + options['OUTPREFIX'] + '.allelecounts.temp'
+		os.system(maccommand)
+		maccommand = 'cat ' + options['OUTPREFIX'] + ".allelecounts.temp.frq.count | sed 's/[A|T|G|C]://g' > " + options['OUTPREFIX'] + '.variantcounts.txt'
+		os.system(maccommand)
+		maccommand = 'rm ' + options['OUTPREFIX'] + '.allelecounts.temp.frq.count > /dev/null'
+		os.system(maccommand)
+		maccommand = 'cat ' + options['OUTPREFIX'] + ".variantcounts.txt | sed 's/[A|T|G|C]://g'| awk '{min=$5;if($6 < $5){min = $6};print $1\"\t\"$2\"\t\"min}' > " + options['OUTPREFIX'] + '.maccounts.txt'
+		os.system(maccommand)
+		macs = pandas.read_table(options['OUTPREFIX'] + '.maccounts.txt')
+		macs['MARKER'] = macs.CHROM.map(str) + ':'  + macs.POS.map(str)
+		del macs['CHROM']
+		del macs['POS']
+		
+		for gene in allgenes:
+			mac_gene = 0
+			genename = re.sub(".*_", "", gene)
+			for ms in markerlistforgenes[genename]:
+				macstoadd = macs[macs['MARKER'] == ms]
+				macstoadd = macstoadd[macs.columns[0]]
+				mac_gene = mac_gene + int(macstoadd)
+			if mac_gene > int(MINMAC):
+				if len(markerlistforgenes[genename]) > int(MINVARS):
+					genespassingfilters[gene] = re.sub(".*_", "", gene)
+		
+		genespassingfilters = pandas.DataFrame(genespassingfilters.keys())
+		genespassingfilters['GENENAME'] = genespassingfilters[genespassingfilters.columns[0]].replace(r".*_","")
+		genespassingfilters.to_csv(options['OUTPREFIX'] + ".genespassingfilters.txt",index=False,index_label=False,sep="\t")
+		
 		os.system('zcat ' + defaults['INPUTDIR'] + '/' + defaults['VCFFILE'] + ' | grep -m 1 "#CHROM" > ' + options['OUTPREFIX'] + '.singlemarkers.vcf')
 		LOGFILE.write(str(time.asctime(time.localtime(time.time()))) + "\t" + 'zcat ' + defaults['INPUTDIR'] + '/' + defaults['VCFFILE'] + ' | grep -m 1 "#CHROM" > ' + options['OUTPREFIX'] + '.singlemarkers.vcf\n')
 		notthere = 0
@@ -663,6 +695,7 @@ while line_num < int(lines_in_file):
 				tabixcommand = 'tabix ' + options['INPUTDIR'] + '/' + options['VCFFILE'] + ' ' + markerchr + ':' + markerposition + '-' + markerposition + ' >> ' + options['OUTPREFIX'] + '.singlemarkers.vcf'
 				os.system(tabixcommand)
 				LOGFILE.write(str(time.asctime(time.localtime(time.time()))) + "\t" + tabixcommand + "\n")
+		
 
 		#tabix and zip
 		print("Indexing file...")
@@ -675,7 +708,7 @@ while line_num < int(lines_in_file):
 		
 		#run epacts for single markers to get single marker p values
 		print("Running Single Marker EPACTS test...")
-		epactscommand = epacts + ' single --vcf ' + options['OUTPREFIX'] + '.singlemarkers.vcf.gz -ped ' + options['OUTPREFIX'] + '.pheno.ped ' + '-pheno ' + phenotype + ' ' + covariatecommand + ' -test ' + defaults['SINGLEMARKERTEST']+ ' -out ' + options['OUTPREFIX'] + '.singlemarker --run 1' 
+		epactscommand = epacts + ' single --vcf ' + options['OUTPREFIX'] + '.singlemarkers.vcf.gz -ped ' + options['OUTPREFIX'] + '.pheno.ped ' + '-pheno ' + phenotype + ' ' + covariatecommand + ' -test ' + defaults['SINGLEMARKERTEST']+ ' -out ' + options['OUTPREFIX'] + '.singlemarker --run 1 > /dev/null'
 		print(epactscommand)
 		LOGFILE.write(str(time.asctime(time.localtime(time.time()))) + "\t" + epactscommand + "\n")
 		os.system(epactscommand)
@@ -761,10 +794,9 @@ while line_num < int(lines_in_file):
 		variants['MAC'] = macstoadd
 		variants = variants.rename(columns={0:"GROUP"})
 		allvariants = variants
-		allvariants.to_csv(options['OUTPREFIX'] + ".allvariants.txt",sep="\t",index=False, index_label=False)
+	#	allvariants.to_csv(options['OUTPREFIX'] + ".allvariants.txt",sep="\t",index=False, index_label=False)
 		#filter by mac of gene
 		geneswithvalidmac = variants[['GROUP']]
-		
 		for macind in geneswithvalidmac.index:
 			a = geneswithvalidmac.GROUP.iloc[macind]
 			if macsofgenes[a] >= int(MINMAC):
@@ -772,7 +804,21 @@ while line_num < int(lines_in_file):
 			else:
 				geneswithvalidmac.iloc[macind] = 0
 		
-#		variants = variants[geneswithvalidmac.GROUP == 1]
+		variants = variants[geneswithvalidmac.GROUP == 1]
+		#now you have genes filtered by minMAC
+		
+		#now get genes filtered by minvar
+#		varswithnumvars = variants[['GROUP', 'MARKER']]
+#		varswithnumvars = varswithnumvars.drop_duplicates(inplace=False)
+#		varswithnumvars = varswithnumvars[['GROUP']]
+#		varswithnumvars = varswithnumvars[['GROUP']].value_counts()
+#		varswithnumvars = varswithnumvars[varswithnumvars > int(MINVARS)]
+#		pandas.DataFrame(list(varswithnumvars)).to_csv(options['OUTPREFIX'] + ".genespassingfilters.txt",index=False, index_label=False)
+		
+		variants = variants.rename(columns={"MARKER":"MARKER_ID"})
+		#filter by numver of variants per gene
+		
+		variants.to_csv(options['OUTPREFIX'] + ".variants.txt",sep="\t", index=False, index_label=False)
 		
 		if 'ANNOTCOLUMNS' in options:
 			columns = options['ANNOTCOLUMNS'].split(",")
@@ -785,15 +831,14 @@ while line_num < int(lines_in_file):
 			merged1 = pandas.merge(markeranno, annotation, left_on='MARKER', right_on = annotation.columns[0], how="left")
 			del merged1[annotation.columns[0]]
 			merged1.to_csv("merged1.txt",sep="\t")
-			merged2 = pandas.merge(variants, merged1, left_on = 'MARKER', right_on='MARKER_ID',how="left")
+			merged2 = pandas.merge(allvariants, merged1, left_on = 'MARKER', right_on='MARKER_ID',how="left")
 			del merged2['MARKER_x']
 			merged2 = merged2.rename(columns={"MARKER_y":"MARKERNAME"})
 			merged2.to_csv("merged.txt",sep="\t")
-			variants = merged2
-				
-		variants.to_csv(options['OUTPREFIX'] + ".variants.txt",sep="\t", index=False, index_label=False)
+			allvariants = merged2
+		allvariants.to_csv(options['OUTPREFIX'] + ".allvariants.txt",sep="\t",index=False, index_label=False)		
 
-	LOGFILE.write("Creating output plots for each significant gene..." + "\n")
+	LOGFILE.write(str(time.asctime(time.localtime(time.time()))) + "\t" + "Creating output plots for each significant gene..." + "\n")
 	SUMMARYFILE = open(options['OUTPREFIX'] + ".summary.txt","w")
 	SUMMARYFILE.write("DATE\t" + str(time.asctime(time.localtime(time.time()))) + "\n")
 	SUMMARYFILE.write("MODEL\t" + options['MODEL'] + "\n")
@@ -825,12 +870,16 @@ while line_num < int(lines_in_file):
 	
 	if len(covariates) > 0:
 		os.system("R --vanilla --slave --args "+ options['OUTPREFIX'] + '.variants.txt ' + phenotype + ' ' + options['OUTPREFIX'] + ' ' + teststowrite + ' ' + str(PVALUETHRESHOLD) + " " + options['MODEL'].split('~')[1] + ' < lattice.multiplegenes2.R')
-		LOGFILE.write("R --vanilla --slave --args "+ options['OUTPREFIX'] + '.variants.txt ' + phenotype + ' ' + options['OUTPREFIX'] + ' ' + teststowrite + ' ' + str(PVALUETHRESHOLD) + ' "' + options['MODEL'].split('~')[1] + '" < lattice.multiplegenes2.R')
+		LOGFILE.write(str(time.asctime(time.localtime(time.time()))) + "\t" + "R --vanilla --slave --args "+ options['OUTPREFIX'] + '.variants.txt ' + phenotype + ' ' + options['OUTPREFIX'] + ' ' + teststowrite + ' ' + str(PVALUETHRESHOLD) + ' "' + options['MODEL'].split('~')[1] + '" < lattice.multiplegenes2.R')
+		print("R --vanilla --slave --args "+ options['OUTPREFIX'] + '.variants.txt ' + phenotype + ' ' + options['OUTPREFIX'] + ' ' + teststowrite + ' ' + str(PVALUETHRESHOLD) + ' "' + options['MODEL'].split('~')[1] + '" < lattice.multiplegenes2.R')
 	else:
 		os.system("R --vanilla --slave --args "+ options['OUTPREFIX'] + '.variants.txt ' + phenotype + ' ' + options['OUTPREFIX'] + ' ' + teststowrite + ' ' + str(PVALUETHRESHOLD) + " " + 'NA' + ' < lattice.multiplegenes2.R')
-		LOGFILE.write("R --vanilla --slave --args "+ options['OUTPREFIX'] + '.variants.txt ' + phenotype + ' ' + options['OUTPREFIX'] + ' ' + teststowrite + ' ' + str(PVALUETHRESHOLD) + ' ' + 'NA '+ ' < lattice.multiplegenes2.R')
+		LOGFILE.write(str(time.asctime(time.localtime(time.time()))) + "\t" + "R --vanilla --slave --args "+ options['OUTPREFIX'] + '.variants.txt ' + phenotype + ' ' + options['OUTPREFIX'] + ' ' + teststowrite + ' ' + str(PVALUETHRESHOLD) + ' ' + 'NA '+ ' < lattice.multiplegenes2.R')
+		print("R --vanilla --slave --args "+ options['OUTPREFIX'] + '.variants.txt ' + phenotype + ' ' + options['OUTPREFIX'] + ' ' + teststowrite + ' ' + str(PVALUETHRESHOLD) + ' ' + 'NA '+ ' < lattice.multiplegenes2.R')
 	############
 	line = configfile.readline()
 	line_num = line_num + 1
 
 LOGFILE.close()
+
+print("Output written to " + options['OUTPREFIX'] + '.topgenes.pdf')
