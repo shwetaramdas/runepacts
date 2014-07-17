@@ -405,8 +405,7 @@ for(i in 1:length(tests[[1]])){
 		genepvalues = rbind(genepvalues, genepvalues1)
 		epacts[tests[[1]][i]] = epacts1['PVALUE']
 	}
-	}
-
+}
 
 merged = merge(merged, epacts, by.x = 'GROUP', by.y = 'MARKER_ID')
 merged$'MAC' = round(merged$'MAC',1)
@@ -684,7 +683,7 @@ if(categorical == 0){				#quantitative phenotype
 			);
 
 			# Create a viewport using the above layout, and positioned within the 
-			# 2nd column of the outer viewport. 
+			# 2nd column of the outer viewport.
 			pushViewport(viewport(
 				layout.pos.col = 2,
 				layout = inner_layout,
@@ -707,11 +706,15 @@ if(categorical == 0){				#quantitative phenotype
 			macheader = addspaces("MAC",longest_mac)
 			
 			testheader = ''
+#			longest_test.p = NA
 			for(testnum in 1:length(tests[[1]])){
-				curtest = tests[[1]][testnum]
+				curtest = paste(tests[[1]][testnum],'.P',sep="")
 				curtest = addspaces(curtest, '4.0e-07 ')
 				testheader = paste(testheader, curtest, sep=" ")
+#				longest_test.p = append(longest_test.p, nchar(testheader))
 			}
+#			longest_test.p = longest_test.p[-1]
+			
 			geneheader = paste(geneheader, testheader, name, betaheader, "VAR.PVAL", "MAF  ", macheader, sep=" ")
 			for(column in extracolumns){
 				geneheader = paste(geneheader, column, sep=" ")
@@ -725,6 +728,21 @@ if(categorical == 0){				#quantitative phenotype
 			  check.overlap=FALSE,
 			  gp = gpar(fontfamily="mono",cex=1)
 			);
+####HERE
+				tempx = convertUnit(unit(1,'npc')+convertUnit(unit(widthtouse,'in'), 'npc'), 'native')
+				tempx = convertUnit(tempx, 'npc')
+				grid.lines(
+				
+					x = unit(c(0,tempx),'npc'),
+					y = unit(c(1,1), 'npc')
+				)
+				grid.lines(
+				
+					x = unit(c(0,tempx),'npc'),
+					y = unit(c(0,0), 'npc')
+				)
+				
+####UNTILHERE
 
 			grid.rect()
 			upViewport(1);
@@ -739,17 +757,17 @@ if(categorical == 0){				#quantitative phenotype
 				thisgene = gsub(".*_","",thisgene, perl=T)
 				genepvalue = ''
 				for(testnum in 1:length(tests[[1]])){
-					thistestgenepvalue = sprintf("%0.3g", rowstoplot[1,tests[[1]][testnum]])
-					thistestgenepvalue = addspaces(thistestgenepvalue, '4.0e-07 ')
+					thistestgenepvalue = rowstoplot[1,tests[[1]][testnum]]
+					thistestgenepvalue = addspaces(thistestgenepvalue, "4.0e-07 ")
 					genepvalue = paste(genepvalue, thistestgenepvalue,sep=" ")
 				}
 				
-				for (i in 1:num_variants) {
+				for (i in 1:num_variants){
 					j = j + 1
 					this_variant = markersingene[i];
 					markerrows = rowstoplot[rowstoplot$'MARKER_ID' == this_variant,]
 					this_pvalue = markerrows$'PVALUE.x'[1]
-					this_maf = round(markerrows$'MAF'[1],digits=3)
+					this_maf = format(round(markerrows$'MAF'[1],digits=3),nsmall=3)
 					this_mac = markerrows$'MAC'[1]
 					this_beta = ""
 					if('BETA' %in% colnames(markerrows)){this_beta = markerrows$'BETA'[1];}
