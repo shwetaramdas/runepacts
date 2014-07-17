@@ -889,9 +889,9 @@ if(categorical == 0){				#quantitative phenotype
 					tempx = convertUnit(unit(1,'npc')+convertUnit(unit(widthtouse,'in'), 'npc'), 'native')
 					tempx = convertUnit(tempx, 'npc')
 					grid.lines(
-						x = unit(c(0,tempx),'npc'),
+						x = unit(c(1,tempx),'npc'),
 						y = unit(c(1,1), 'npc'),
-						gp= gpar(col="lightgrey", lty="dotted")
+						gp= gpar(col="grey", lty="dotdash")
 						
 					)
 					# Go back up so we can push another viewport within the layout (the viewport higher up in the tree.) 	
@@ -925,7 +925,9 @@ if(categorical == 0){				#quantitative phenotype
 			grid.xaxis();
 			grid.yaxis();
 			grid.text("Percent of Total",x = unit(-4,'lines'),rot = 90);
-			grid.text(paste(phenotype, "Distribution: ", length(phenotypes), "samples", sep=" "), x=unit(13, 'char'), y=unit(0.97, 'npc'))
+			if(length(covariates) > 0){adjustedpheno = paste("Adjusted ", phenotype,sep="");}
+			else{adjustedpheno = phenotype}
+			grid.text(paste(adjustedpheno, "Distribution: ", length(phenotypes), "samples", sep=" "), x=unit(13, 'char'), y=unit(0.97, 'npc'))
 			panel.rug(x=max(phenotyperesiduals),y=0)
 			panel.rug(x=min(phenotyperesiduals),y=0)
 			upViewport(1);
