@@ -927,7 +927,7 @@ if(categorical == 0){				#quantitative phenotype
 			grid.text("Percent of Total",x = unit(-4,'lines'),rot = 90);
 			if(length(covariates) > 0){adjustedpheno = paste("Adjusted ", phenotype,sep="");}
 			else{adjustedpheno = phenotype}
-			grid.text(paste(adjustedpheno, "Distribution: ", length(phenotypes), "samples", sep=" "), x=unit(13, 'char'), y=unit(0.97, 'npc'))
+			grid.text(paste(adjustedpheno, "Distribution: ", length(phenotypes), "samples", sep=" "), x=unit(16, 'char'), y=unit(0.97, 'npc'))
 			panel.rug(x=max(phenotyperesiduals),y=0)
 			panel.rug(x=min(phenotyperesiduals),y=0)
 			upViewport(1);
