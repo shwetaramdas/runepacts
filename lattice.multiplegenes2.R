@@ -741,12 +741,12 @@ if(categorical == 0){				#quantitative phenotype
 					x = unit(c(0,tempx),'npc'),
 					y = unit(c(0,0), 'npc')
 				)
-				
+
 ####UNTILHERE
 
 			grid.rect()
 			upViewport(1);
-			
+
 			j = 0
 
 			for(genenum in 1:length(genes)){
@@ -761,7 +761,7 @@ if(categorical == 0){				#quantitative phenotype
 					thistestgenepvalue = addspaces(thistestgenepvalue, "4.0e-07 ")
 					genepvalue = paste(genepvalue, thistestgenepvalue,sep=" ")
 				}
-				
+
 				for (i in 1:num_variants){
 					j = j + 1
 					this_variant = markersingene[i];
@@ -823,9 +823,9 @@ if(categorical == 0){				#quantitative phenotype
 							grid.points(
 							x = unit(hets_pheno,'native'),
 							y = unit(rep(0.5,length(hets_pheno)),'npc'),
-							pch = 20,
+							pch = 1,
 							gp = gpar(
-								cex = 0.5,
+								cex = 0.3,
 								col="blue"
 							)
 							);
