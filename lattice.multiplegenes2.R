@@ -416,6 +416,7 @@ if('BETA' %in% colnames(merged)){
 }
 
 merged$'BETA' = format(round(merged$'BETA',2),nsmall=2)
+merged$'PVALUE.x' = format(round(merged$'PVALUE.x',3),nsmall=3)
 
 allgenes = unique(merged[,c('GROUP','PVALUE.x')])
 allgenes = allgenes[which(allgenes[,2] <= pvaluethreshold),]
@@ -746,8 +747,8 @@ if(categorical == 0){				#quantitative phenotype
 				for (i in 1:num_variants) {
 					j = j + 1
 					this_variant = markersingene[i];
-					markerrows = rowstoplot[rowstoplot	$'MARKER_ID' == this_variant,]
-					this_pvalue = sprintf("%0.3g", markerrows$'PVALUE.x'[1])
+					markerrows = rowstoplot[rowstoplot$'MARKER_ID' == this_variant,]
+					this_pvalue = markerrows$'PVALUE.x'[1]
 					this_maf = round(markerrows$'MAF'[1],digits=3)
 					this_mac = markerrows$'MAC'[1]
 					this_beta = ""
