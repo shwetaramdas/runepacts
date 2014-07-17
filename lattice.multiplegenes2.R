@@ -343,17 +343,24 @@ allvariants = read.table(paste(prefix, '.allvariants.txt',sep=''),sep="\t",strin
 
 #phenotypes
 phenos = read.table(paste(prefix,".pheno.ped",sep=""), comment.char="", header=T,stringsAsFactors=F)
-merged = merge(allvariants, phenos, by.x = 'IND', by.y = 'IND_ID')
+
 phenotypes =  as.numeric(phenos[!is.na(phenos[phenotype]),phenotype])
 phenotypemean = mean(phenotypes)
-
 #get phenotype residuals if covariates are given, else set phenotype residuals to phenotypes
 if(covariates != 'NA'){
 	model = paste(phenotype , covariates, sep=' ~ ')
 	phenotyperesiduals = lm(model, phenofile)$residuals
+	j = 1
+	for(i in 1:nrow(phenos)){
+		if(is.na(phenos[i, phenotype])){TEMPORARY = 1;}
+		else{phenos[i,phenotype] = phenotyperesiduals[j]; j = j +1}
+	}
 }else{
 	phenotyperesiduals = phenotypes
 }
+
+merged = merge(allvariants, phenos, by.x = 'IND', by.y = 'IND_ID')
+
 
 #number of columns to add to the pdf on the right.
 columnstoannotate = allvariants
@@ -757,7 +764,7 @@ if(categorical == 0){				#quantitative phenotype
 				thisgene = gsub(".*_","",thisgene, perl=T)
 				genepvalue = ''
 				for(testnum in 1:length(tests[[1]])){
-					thistestgenepvalue = rowstoplot[1,tests[[1]][testnum]]
+					thistestgenepvalue = round(as.numeric(rowstoplot[1,tests[[1]][testnum]]),3)
 					thistestgenepvalue = addspaces(thistestgenepvalue, "4.0e-07 ")
 					genepvalue = paste(genepvalue, thistestgenepvalue,sep=" ")
 				}
@@ -879,7 +886,15 @@ if(categorical == 0){				#quantitative phenotype
 						y = unit(c(0,1),'npc'),
 						gp = gpar(col="dark green")
 					);			
-					# Go back up so we can push another viewport within the layout (the viewport higher up in the tree.) 
+					tempx = convertUnit(unit(1,'npc')+convertUnit(unit(widthtouse,'in'), 'npc'), 'native')
+					tempx = convertUnit(tempx, 'npc')
+					grid.lines(
+						x = unit(c(0,tempx),'npc'),
+						y = unit(c(1,1), 'npc'),
+						gp= gpar(col="lightgrey", lty="dotted")
+						
+					)
+					# Go back up so we can push another viewport within the layout (the viewport higher up in the tree.) 	
 					if(i < num_variants){
 						upViewport(1);
 					}
