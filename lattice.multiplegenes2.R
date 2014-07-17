@@ -323,6 +323,7 @@ addspaces <- function(string, maxstring){
 	return(string)
 }
 
+#START MAIN
 #get arguments from input
 arguments = commandArgs(trailingOnly=TRUE)
 variants = read.table(arguments[1], header=T,stringsAsFactors=FALSE)
@@ -354,7 +355,7 @@ if(covariates != 'NA'){
 	phenotyperesiduals = phenotypes
 }
 
-#number of columns to add to the pdf on the right columns
+#number of columns to add to the pdf on the right.
 columnstoannotate = allvariants
 columnstoannotate$GROUP = NULL
 columnstoannotate$MARKER_ID = NULL
@@ -366,11 +367,11 @@ columnstoannotate$MAC = NULL
 columnstoannotate$BETA = NULL
 columnstoannotate$PVALUE = NULL
 
-#after deleting these columns, whatever is left in columnstoannotate has to be added to the info on the right
+#after deleting these columns, whatever is left in columnstoannotate has to be added to the info on the right. We have to compute how many such columns there are, and how much space it is likely to take up
+extralengthtoadd = 0
 if(ncol(columnstoannotate) > 0){
 	extracolumns = colnames(columnstoannotate);
 	lengthextracolumns = NA
-	extralengthtoadd = 0
 	for(column in extracolumns){
 		len = columnstoannotate[which.max(nchar(columnstoannotate[column][[1]])),column];
 		lengthextracolumns = append(lengthextracolumns, len)
@@ -379,8 +380,14 @@ if(ncol(columnstoannotate) > 0){
 	lengthextracolumns = lengthextracolumns[-1]
 }
 
-#for each test, get the epacts burden test results and put them all in a data frame called epacts1
+#for each additional groupwise-test performed, add extra columns
+if(length(tests[[1]]) > 1){
+	for(i in 2:length(tests[[1]])){
+		extralengthtoadd = extralengthtoadd + 7
+	}
+}
 
+#for each test, get the epacts burden test results and put them all in a data frame called epacts1
 for(i in 1:length(tests[[1]])){
 	epacts1 = read.table(paste(prefix, '.', tests[[1]][i] ,".epacts",sep=""),header=T, comment.char="",stringsAsFactors=F)
 	if(!('BEGIN' %in% colnames(epacts1))){
@@ -391,20 +398,24 @@ for(i in 1:length(tests[[1]])){
 		epacts = epacts1;
 		genepvalues = epacts1[,c('MARKER_ID', 'PVALUE')]
 		genepvalues['TEST'] = tests[[1]][i]
+		epacts[tests[[1]][i]] = epacts1['PVALUE']
 	}else{
 		genepvalues1 = epacts1[,c('MARKER_ID', 'PVALUE')]
 		genepvalues1['TEST'] = tests[[1]][i]
 		genepvalues = rbind(genepvalues, genepvalues1)
 		epacts[tests[[1]][i]] = epacts1['PVALUE']
 	}
-}
+	}
+
 
 merged = merge(merged, epacts, by.x = 'GROUP', by.y = 'MARKER_ID')
-
+merged$'MAC' = round(merged$'MAC',1)
 #sort by BETA, then by pvalue for the gene, then by pvalue of the individual markers
 if('BETA' %in% colnames(merged)){
 	merged = merged[order(-abs(merged$'BETA'),merged$'PVALUE.y', merged$'PVALUE.x'),];
 }
+
+merged$'BETA' = format(round(merged$'BETA',2),nsmall=2)
 
 allgenes = unique(merged[,c('GROUP','PVALUE.x')])
 allgenes = allgenes[which(allgenes[,2] <= pvaluethreshold),]
@@ -413,6 +424,7 @@ allgenes = unique(allgenes)
 
 genes = merged[,c('GROUP', 'PVALUE.x')]
 genes = genes[order(genes[,2]),]
+genes = genes[which(genes[,2] <= pvaluethreshold),]
 genes = unique(genes[,1])
 totalgenes = length(genes)
 
@@ -430,7 +442,7 @@ if(categorical == 0){				#quantitative phenotype
 		longest_beta = ""
 		longest_mac = ""
 
-		#
+		#this for loop gets the number of genes to plot as a histogram, and how many pages to split it into. maximum of 40 rows per page.
 		for(genenum in 1:length(genes)){
 			gene = genes[genenum]
 			rowstoplot = merged[merged$'GROUP' == gene,]
@@ -446,7 +458,7 @@ if(categorical == 0){				#quantitative phenotype
 					longest_variant = markersingene[which.max(nchar(unique(rowstoplot$'MARKER_ID')))];
 				}
 				if('BETA' %in% colnames(rowstoplot)){
-					l = round(rowstoplot$'BETA'[which.max(nchar(round(rowstoplot$'BETA',digits=2)))],digits=2)
+					l = rowstoplot$'BETA'[which.max(nchar(as.numeric(rowstoplot$'BETA')))]
 					if(nchar(l) > nchar(longest_beta)){longest_beta = l;}
 				}
 				l = rowstoplot$'MAC'[which.max(nchar(rowstoplot$'MAC'))]
@@ -725,8 +737,8 @@ if(categorical == 0){				#quantitative phenotype
 				markersingene = unique(rowstoplot$'MARKER_ID')
 				thisgene = gsub(".*_","",thisgene, perl=T)
 				genepvalue = ''
-				for(testnum in 1:length(tests)){
-					thistestgenepvalue = sprintf("%0.3g", rowstoplot$'PVALUE.y'[1])
+				for(testnum in 1:length(tests[[1]])){
+					thistestgenepvalue = sprintf("%0.3g", rowstoplot[1,tests[[1]][testnum]])
 					thistestgenepvalue = addspaces(thistestgenepvalue, '4.0e-07 ')
 					genepvalue = paste(genepvalue, thistestgenepvalue,sep=" ")
 				}
@@ -739,7 +751,7 @@ if(categorical == 0){				#quantitative phenotype
 					this_maf = round(markerrows$'MAF'[1],digits=3)
 					this_mac = markerrows$'MAC'[1]
 					this_beta = ""
-					if('BETA' %in% colnames(markerrows)){this_beta = round(markerrows$'BETA'[1], digits=2);}
+					if('BETA' %in% colnames(markerrows)){this_beta = markerrows$'BETA'[1];}
 					#What is the rarest genotype for this variant? If it is a het, discard it because we extract hets separately
 					rare_geno = names(tail(sort(table(markerrows$'GENOTYPE'),decreasing=T),1))
 					if(rare_geno == '0/1'){
@@ -757,6 +769,12 @@ if(categorical == 0){				#quantitative phenotype
 						for(chartoadd in 1:chars_to_add){
 							this_maf = paste(this_maf, " ", sep="")
 						}
+					}
+					
+					#only print gene and gene-pvalue if it's the first variant
+					if(i > 1){
+						thisgene = paste(rep(" ",nchar(thisgene)),collapse="")
+						genepvalue = paste(rep(" ",nchar(genepvalue)),collapse="")
 					}
 					
 					# Create the viewport. 
@@ -809,7 +827,7 @@ if(categorical == 0){				#quantitative phenotype
 					# Write the name of the SNP on the right hand side.
 					thisgene = addspaces(thisgene, longestgenename)
 					this_variant = addspaces(this_variant, longest_variant)
-					if(substr(this_beta,1,1) != '-'){ this_beta = paste('+', this_beta,sep=""); }
+#					if(substr(this_beta,1,1) != '-'){ this_beta = paste('+', this_beta,sep=""); }
 					this_beta = addspaces(this_beta, longest_beta)
 					this_mac = addspaces(this_mac, longest_mac)
 					this_maf = addspaces(this_maf, "0.000")
@@ -898,7 +916,7 @@ if(categorical == 0){				#quantitative phenotype
 						length_longest_variant = l;
 						longest_variant = markersingene[which.max(nchar(markersingene))];
 					}
-					l = round(rowstoplot$'BETA'[which.max(nchar(round(rowstoplot$'BETA',digits=2)))],digits=2)
+					l = rowstoplot$'BETA'[which.max(nchar(as.numeric(rowstoplot$'BETA'),))]
 					if(nchar(l) > nchar(longest_beta)){longest_beta = l;}
 					l = rowstoplot$'MAC'[which.max(nchar(rowstoplot$'MAC'))]
 					if(nchar(l) > nchar(longest_mac)){longest_mac = l;}
