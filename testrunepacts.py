@@ -283,11 +283,13 @@ defaults['MINMAF'] = 0
 defaults['MINMAC'] = 0
 defaults['MAXMAF'] = 1
 defaults['EPACTSGROUPFILE'] = 'NA'
+defaults['VERBOSE'] = 'OFF'
+defaults['GENELIST'] = 'NA'
 
 ##open log file to write to
-LOGFILE = open("runepacts_" +  time.asctime(time.localtime(time.time())).replace(" ","_") + ".log", "w")
+logfilename = "runepacts_" +  time.asctime(time.localtime(time.time())).replace(" ","_") + ".log"
+LOGFILE = open(logfilename, "w")
 numtests = 0
-TESTS = []
 
 #This while loop reads in each line, till the end, and if the line has a 'PROCESS', it does the required processing, and run the epacts test
 while line_num < int(lines_in_file):
@@ -295,7 +297,7 @@ while line_num < int(lines_in_file):
 	while len(line) < 3:
 		line = configfile.readline()
 		line_num = line_num + 1
-
+	TESTS = []
 	#keep reading in lines, and storing the parameters till you hit a 'PROCESS'
 	while line[0:7] != "PROCESS":
 		line = line.rstrip()
@@ -520,6 +522,13 @@ while line_num < int(lines_in_file):
 	if 'GROUPFILE' not in options.keys():
 		print "Creating groupfile...\n"
 		LOGFILE.write(str(time.asctime(time.localtime(time.time()))) + "\t" + "Creating groupfile...\n")
+
+		if 'ANNOTFILE' not in options:
+			annotatecommand = epacts + ' anno -in ' + defaults['INPUTDIR'] + '/' + defaults['VCFFILE'] + ' -out ' + options['OUTPREFIX'] + '.anno.vcf.gz'
+			os.system(annotatecommand)
+			annotatecommand = epacts + ' make-group --vcf ' + options['OUTPREFIX'] + '.anno.vcf.gz --out ' + options['OUTPREFIX'] + '.annotated.txt --format epacts'
+			os.system(annotatecommand)
+			finalgroupfilename = options['OUTPREFIX'] + '.annotated.txt'
 		if '.gz' in options['ANNOTFILE']:
 			cat = 'zcat '
 		else:
@@ -644,8 +653,8 @@ while line_num < int(lines_in_file):
 			for tempindex in range(0,len(temp)):
 				temp[tempindex] = re.sub(r"_.*","",temp[tempindex])
 			markerlistforgenes[genename] = temp
-		groupfile.close()
 
+		groupfile.close()
 		maccommand = 'vcftools --gzvcf ' + options['INPUTDIR'] + '/' + defaults['VCFFILE'] + ' --counts --out ' + options['OUTPREFIX'] + '.allelecounts.temp'
 		os.system(maccommand)
 		maccommand = 'cat ' + options['OUTPREFIX'] + ".allelecounts.temp.frq.count | sed 's/[A|T|G|C]://g' > " + options['OUTPREFIX'] + '.variantcounts.txt'
@@ -663,6 +672,7 @@ while line_num < int(lines_in_file):
 			mac_gene = 0
 			genename = re.sub(".*_", "", gene)
 			for ms in markerlistforgenes[genename]:
+				
 				macstoadd = macs[macs['MARKER'] == ms]
 				macstoadd = macstoadd[macs.columns[0]]
 				mac_gene = mac_gene + int(macstoadd)
@@ -807,14 +817,6 @@ while line_num < int(lines_in_file):
 		variants = variants[geneswithvalidmac.GROUP == 1]
 		#now you have genes filtered by minMAC
 		
-		#now get genes filtered by minvar
-#		varswithnumvars = variants[['GROUP', 'MARKER']]
-#		varswithnumvars = varswithnumvars.drop_duplicates(inplace=False)
-#		varswithnumvars = varswithnumvars[['GROUP']]
-#		varswithnumvars = varswithnumvars[['GROUP']].value_counts()
-#		varswithnumvars = varswithnumvars[varswithnumvars > int(MINVARS)]
-#		pandas.DataFrame(list(varswithnumvars)).to_csv(options['OUTPREFIX'] + ".genespassingfilters.txt",index=False, index_label=False)
-		
 		variants = variants.rename(columns={"MARKER":"MARKER_ID"})
 		#filter by numver of variants per gene
 		
@@ -874,7 +876,7 @@ while line_num < int(lines_in_file):
 		print("R --vanilla --slave --args "+ options['OUTPREFIX'] + '.variants.txt ' + phenotype + ' ' + options['OUTPREFIX'] + ' ' + teststowrite + ' ' + str(PVALUETHRESHOLD) + ' "' + options['MODEL'].split('~')[1] + '" < lattice.multiplegenes2.R')
 	else:
 		os.system("R --vanilla --slave --args "+ options['OUTPREFIX'] + '.variants.txt ' + phenotype + ' ' + options['OUTPREFIX'] + ' ' + teststowrite + ' ' + str(PVALUETHRESHOLD) + " " + 'NA' + ' < lattice.multiplegenes2.R')
-		LOGFILE.write(str(time.asctime(time.localtime(time.time()))) + "\t" + "R --vanilla --slave --args "+ options['OUTPREFIX'] + '.variants.txt ' + phenotype + ' ' + options['OUTPREFIX'] + ' ' + teststowrite + ' ' + str(PVALUETHRESHOLD) + ' ' + 'NA '+ ' < lattice.multiplegenes2.R')
+		LOGFILE.write(str(time.asctime(time.localtime(time.time()))) + "\t" + "R --vanilla --slave --args "+ options['OUTPREFIX'] + '.variants.txt ' + phenotype + ' ' + options['OUTPREFIX'] + ' ' + teststowrite + ' ' + str(PVALUETHRESHOLD) + ' ' + 'NA '+ ' < lattice.multiplegenes2.R' + "\n")
 		print("R --vanilla --slave --args "+ options['OUTPREFIX'] + '.variants.txt ' + phenotype + ' ' + options['OUTPREFIX'] + ' ' + teststowrite + ' ' + str(PVALUETHRESHOLD) + ' ' + 'NA '+ ' < lattice.multiplegenes2.R')
 	############
 	line = configfile.readline()
@@ -882,4 +884,6 @@ while line_num < int(lines_in_file):
 
 LOGFILE.close()
 
+command = 'mv ' + logfilename + ' ' + options['OUTPREFIX'] + '.log'
+os.system(command)
 print("Output written to " + options['OUTPREFIX'] + '.topgenes.pdf')
