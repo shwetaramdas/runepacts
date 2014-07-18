@@ -832,14 +832,12 @@ while line_num < int(lines_in_file):
 				colnum = colnum + 1
 			merged1 = pandas.merge(markeranno, annotation, left_on='MARKER', right_on = annotation.columns[0], how="left")
 			del merged1[annotation.columns[0]]
-			merged1.to_csv("merged1.txt",sep="\t")
 			merged2 = pandas.merge(allvariants, merged1, left_on = 'MARKER', right_on='MARKER_ID',how="left")
 			del merged2['MARKER_x']
 			merged2 = merged2.rename(columns={"MARKER_y":"MARKERNAME"})
-			merged2.to_csv("merged.txt",sep="\t")
 			allvariants = merged2
 		allvariants.to_csv(options['OUTPREFIX'] + ".allvariants.txt",sep="\t",index=False, index_label=False)		
-
+	
 	LOGFILE.write(str(time.asctime(time.localtime(time.time()))) + "\t" + "Creating output plots for each significant gene..." + "\n")
 	SUMMARYFILE = open(options['OUTPREFIX'] + ".summary.txt","w")
 	SUMMARYFILE.write("DATE\t" + str(time.asctime(time.localtime(time.time()))) + "\n")
