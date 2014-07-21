@@ -450,29 +450,30 @@ if(categorical == 0){				#quantitative phenotype
 		longest_mac = ""
 
 		#this for loop gets the number of genes to plot as a histogram, and how many pages to split it into. maximum of 40 rows per page.
-		for(genenum in 1:length(genes)){
-			gene = genes[genenum]
-			rowstoplot = merged[merged$'GROUP' == gene,]
-			num_variants = length(unique(rowstoplot$'MARKER_ID'))
-			
-			totalvariants = totalvariants + num_variants
-			markersingene = unique(rowstoplot$'MARKER_ID')
-			if((numgenestoinclude == 0) || (totalvariants <= 40)){
-				numgenestoinclude = numgenestoinclude + 1;
-				l = nchar(markersingene[which.max(nchar(markersingene))])
-				if (l > length_longest_variant){
-					length_longest_variant = l; 
-					longest_variant = markersingene[which.max(nchar(unique(rowstoplot$'MARKER_ID')))];
+		if(length(genes) > 0){
+			for(genenum in 1:length(genes)){
+				gene = genes[genenum]
+				rowstoplot = merged[merged$'GROUP' == gene,]
+				num_variants = length(unique(rowstoplot$'MARKER_ID'))
+				
+				totalvariants = totalvariants + num_variants
+				markersingene = unique(rowstoplot$'MARKER_ID')
+				if((numgenestoinclude == 0) || (totalvariants <= 40)){
+					numgenestoinclude = numgenestoinclude + 1;
+					l = nchar(markersingene[which.max(nchar(markersingene))])
+					if (l > length_longest_variant){
+						length_longest_variant = l; 
+						longest_variant = markersingene[which.max(nchar(unique(rowstoplot$'MARKER_ID')))];
+					}
+					if('BETA' %in% colnames(rowstoplot)){
+						l = rowstoplot$'BETA'[which.max(nchar(as.numeric(rowstoplot$'BETA')))]
+						if(nchar(l) > nchar(longest_beta)){longest_beta = l;}
+					}
+					l = rowstoplot$'MAC'[which.max(nchar(rowstoplot$'MAC'))]
+					if(nchar(l) > nchar(longest_mac)){longest_mac = l;}
 				}
-				if('BETA' %in% colnames(rowstoplot)){
-					l = rowstoplot$'BETA'[which.max(nchar(as.numeric(rowstoplot$'BETA')))]
-					if(nchar(l) > nchar(longest_beta)){longest_beta = l;}
-				}
-				l = rowstoplot$'MAC'[which.max(nchar(rowstoplot$'MAC'))]
-				if(nchar(l) > nchar(longest_mac)){longest_mac = l;}
 			}
 		}
-
 		if(numgenestoinclude > 1){
 			totalvariants = min(totalvariants, 40)
 		}
