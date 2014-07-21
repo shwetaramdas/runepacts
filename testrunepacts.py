@@ -281,11 +281,12 @@ defaults['OUTPREFIX'] = ''
 defaults['INPUTDIR'] = ''
 defaults['SINGLEMARKERTEST'] = 'q.linear'
 defaults['MINMAF'] = 0
-defaults['MINMAC'] = 0
+defaults['GENEMINMAC'] = 0
 defaults['MAXMAF'] = 1
 defaults['EPACTSGROUPFILE'] = 'NA'
 defaults['VERBOSE'] = 'OFF'
 defaults['GENELIST'] = 'NA'
+defaults['MINMAC'] = 0
 
 ##open log file to write to
 logfilename = "runepacts_" +  time.asctime(time.localtime(time.time())).replace(" ","_") + ".log"
@@ -360,10 +361,10 @@ while line_num < int(lines_in_file):
 		MINVARS = options['MINVARS']
 	else:
 		MINVARS = 2
-	if 'MINMAC' in options.keys():
-		MINMAC = options['MINMAC']
+	if 'GENEMINMAC' in options.keys():
+		GENEMINMAC = options['GENEMINMAC']
 	else:
-		MINMAC = 5
+		GENEMINMAC = 5
 	#now you have all the options for the test
 	#this block sets the default options (which change if specified by the user)
 	kinshipcommand = ''
@@ -634,8 +635,6 @@ while line_num < int(lines_in_file):
 	#if output is empty, then create empty single marker file?
 	
 	#now format the output you get
-	print(MINVARS)
-	print(MINMAC)
 	singlemarkertest = 'false'
 
 	#get minvars and minmac
@@ -683,7 +682,7 @@ while line_num < int(lines_in_file):
 				macstoadd = macs[macs['MARKER'] == ms]
 				macstoadd = macstoadd[macs.columns[0]]
 				mac_gene = mac_gene + int(macstoadd)
-			if mac_gene > int(MINMAC):
+			if mac_gene > int(GENEMINMAC):
 				if len(markerlistforgenes[genename]) > int(MINVARS):
 					genespassingfilters[gene] = re.sub(".*_", "", gene)
 		
@@ -816,7 +815,7 @@ while line_num < int(lines_in_file):
 		geneswithvalidmac = variants[['GROUP']]
 		for macind in geneswithvalidmac.index:
 			a = geneswithvalidmac.GROUP.iloc[macind]
-			if macsofgenes[a] >= int(MINMAC):
+			if macsofgenes[a] >= int(GENEMINMAC):
 				geneswithvalidmac.iloc[macind] = 1
 			else:
 				geneswithvalidmac.iloc[macind] = 0
@@ -869,8 +868,8 @@ while line_num < int(lines_in_file):
 		SUMMARYFILE.write("PVALUETHRESHOLD\t" + options['PVALUETHRESHOLD'] + "\n")
 	if 'MINVARS' in options:
 		SUMMARYFILE.write("PLOT.MINVARS\t" + options['MINVARS'] + "\n")
-	if 'MINMAC' in options:
-		SUMMARYFILE.write("PLOT.MINMAC\t" + options['MINMAC'] + "\n")
+	if 'GENEMINMAC' in options:
+		SUMMARYFILE.write("PLOT.GENEMINMAC\t" + options['GENEMINMAC'] + "\n")
 	
 	SUMMARYFILE.close()
 	teststowrite = teststowrite.strip(",")
