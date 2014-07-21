@@ -591,7 +591,6 @@ if(categorical == 0){				#quantitative phenotype
 			seekViewport("master")
 			print(qq1.plot, draw.in = "vp1")
 			print(qq2.plot, draw.in = "vp2")
-			#grid.rect()
 			upViewport(1);
 			#update(qq.plot,par.settings = list(fontsize = list(text = 10, points = 8)))
 
@@ -623,7 +622,7 @@ if(categorical == 0){				#quantitative phenotype
 			toplot[,2] = as.numeric(toplot[,2])
 			toplot = toplot[order(toplot[,1], toplot[,2]),]
 			mhtplot = manhattan.plot(toplot[,1], toplot[,2], toplot[,3], sig.level=2e-6,main=paste("Test: ", test, " Filtered ", phenotype, ", No. Samples=",length(phenotypes),", No. Genes=",nrow(toplot),sep=""))
-		#	update(mhtplot,par.settings = list(fontsize = list(text = 15, points = 8)))
+
 			print(mhtplot)
 		}
 
@@ -677,19 +676,19 @@ if(categorical == 0){				#quantitative phenotype
 
 			# Now the inner layout (within the 2nd column of the outer layout). 
 			# This has 1 row for the histogram, a spacer row, and then however many 
-			# rows are needed for each variant. 
 			inner_layout = grid.layout(
-				nrow = 1 + 1 + 1 + totalvariants + length(genes) + 1,
+			# rows are needed for each variant. 
+				nrow = 1 + 1 + 1 + totalvariants + 1,
 				ncol = 1,
 				height = unit.c(
-					unit(15,'lines'),
+					unit(13,'lines'),
 					unit(3,'lines'),
-					rep(unit(axis_height,'lines'),(totalvariants+length(genes))),
+					rep(unit(axis_height,'lines'),totalvariants),
 					unit(1,'null')
 				)
 			);
 
-			# Create a viewport using the above layout, and positioned within the 
+				# Create a viewport using the above layout, and positioned within the 
 			# 2nd column of the outer viewport.
 			pushViewport(viewport(
 				layout.pos.col = 2,
@@ -735,25 +734,22 @@ if(categorical == 0){				#quantitative phenotype
 			  check.overlap=FALSE,
 			  gp = gpar(fontfamily="mono",cex=1)
 			);
-####HERE
+
 				tempx = convertUnit(unit(1,'npc')+convertUnit(unit(widthtouse,'in'), 'npc'), 'native')
 				tempx = convertUnit(tempx, 'npc')
 				grid.lines(
-				
 					x = unit(c(0,tempx),'npc'),
 					y = unit(c(1,1), 'npc')
 				)
 				grid.lines(
-				
 					x = unit(c(0,tempx),'npc'),
 					y = unit(c(0,0), 'npc')
 				)
 
-####UNTILHERE
 
 			grid.rect()
 			upViewport(1);
-
+			#now you are back in the inner layout viewport
 			j = 0
 
 			for(genenum in 1:length(genes)){
@@ -888,12 +884,13 @@ if(categorical == 0){				#quantitative phenotype
 					);			
 					tempx = convertUnit(unit(1,'npc')+convertUnit(unit(widthtouse,'in'), 'npc'), 'native')
 					tempx = convertUnit(tempx, 'npc')
-					grid.lines(
-						x = unit(c(1,tempx),'npc'),
-						y = unit(c(1,1), 'npc'),
-						gp= gpar(col="grey", lty="dotdash")
-						
-					)
+					if(i < num_variants){
+						grid.lines(
+							x = unit(c(1,tempx),'npc'),
+							y = unit(c(0,0), 'npc'),
+							gp= gpar(col="grey", lty="dotdash")
+						)
+					}
 					# Go back up so we can push another viewport within the layout (the viewport higher up in the tree.) 	
 					if(i < num_variants){
 						upViewport(1);
