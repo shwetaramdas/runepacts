@@ -10,6 +10,7 @@ import pandas
 import time
 import matplotlib
 import pylab
+import random
 
 #FUNCTIONS
 #this function just performs a filter on a column (or multiple columns) of a file by reading it in as a numpy table.
@@ -565,6 +566,12 @@ while line_num < int(lines_in_file):
 	else:
 		finalgroupfilename = defaults['INPUTDIR'] + '/' + defaults['GROUPFILE']
 
+	if 'GENELIST' in options:
+		outputname = random.randrange(1,1000000)
+		getonlygenelistcommand = 'cat ' + finalgroupfilename + ' | grep -wf ' + options['INPUTDIR'] + '/' + options['GENELIST'] + ' > ' + outputname
+		os.system(getonlygenelistcommand)
+		os.system('mv ' + outputname + ' ' + finalgroupfilename)
+		
 	phenotype = options['MODEL'].split('~')[0]
 
 	for TEST in TESTS:
@@ -602,9 +609,9 @@ while line_num < int(lines_in_file):
 			print epacts_command
 			os.system(epacts_command)
 			LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + epacts_command + "\n")
-
+			print("Epacts run! Formatting Output...\n")
 	############
-	print("Epacts run! Formatting Output...\n")
+	
 	LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + "Epacts run! Formatting output..." + "\n")
 
 	for TEST in TESTS:
