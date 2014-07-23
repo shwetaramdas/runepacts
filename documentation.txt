@@ -17,9 +17,11 @@ Input files:
 
 File formats:
 Config file: There are two columns per line, the first being the parameter name and the second the parameter value. The following are the parameters accepted:
+
 Directories:
 INPUTDIR    Directory where input files are found. Can be local path from the folder containing the python script, or global path [COMPULSORY]
 EPACTSDIR   Directory from which epacts should be run. If not set, the script assumes epacts is in the path. [OPTIONAL]
+
 Files:
 VCFFILE     Vcf file name. Should be present in the INPUTDIR [COMPULSORY]
 PEDFILE     File containing sample information. Header compulsory. The first five columns have to be Fam_ID,IND_ID,FAT_ID,MOT_ID,SEX respectively. [COMPULSORY]
@@ -30,11 +32,12 @@ MAFFILE     [OPTIONAL]
 Tests to run:
 MODEL       [COMPULSORY]
 TEST        [COMPULSORY]
+
 Filtering parameters:
-FILTERPED   [OPTIONAL]
-FILTERMAF   [OPTIONAL]
-MINVARS     [OPTIONAL]
-GENEMINMAC  [OPTIONAL]
+FILTERPED   An expression that allows you to filter samples using one of the columns in the PEDFILE [OPTIONAL]
+FILTERMAF   This can either be used as a MAF filter (example 0.05), or an expression that allows filtering of the MAF file (example:  'COLUMN1 < 0.001')[OPTIONAL]
+MINVARS     Specify the minimum number of variants a gene must have for it to be included in the output [OPTIONAL]
+GENEMINMAC  Specify the minimum number of minor alleles a gene must have [OPTIONAL]
 PVALUETHRESHOLD What p-value cut-off from the group-wise test should be used to classify a gene as significant? Default = 0.05 [OPTIONAL]
 
 Example config file
