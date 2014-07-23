@@ -663,38 +663,43 @@ while line_num < int(lines_in_file):
 		groupfile.close()
 
 		#use VCFtools to get the mac for each variant from the vcffile
-		maccommand = 'vcftools --gzvcf ' + options['INPUTDIR'] + '/' + defaults['VCFFILE'] + ' --keep ' + options['OUTPREFIX'] + ".samplestokeep.txt"  + ' --counts --out ' + options['OUTPREFIX'] + '.allelecounts.temp'
-		os.system(maccommand)
-		LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + maccommand + "\n" )
-		maccommand = 'cat ' + options['OUTPREFIX'] + ".allelecounts.temp.frq.count | sed 's/[A|T|G|C]://g' > " + options['OUTPREFIX'] + '.variantcounts.txt'
-		os.system(maccommand)
-		maccommand = 'rm ' + options['OUTPREFIX'] + '.allelecounts.temp.frq.count > /dev/null'
-		os.system(maccommand)
-		maccommand = 'cat ' + options['OUTPREFIX'] + ".variantcounts.txt | sed 's/[A|T|G|C]://g'| awk '{min=$5;if($6 < $5){min = $6};print $1\"\t\"$2\"\t\"min}' > " + options['OUTPREFIX'] + '.maccounts.txt'
-		os.system(maccommand)
-		macs = pandas.read_table(options['OUTPREFIX'] + '.maccounts.txt')
-		macs['MARKER'] = macs.CHROM.map(str) + ':'  + macs.POS.map(str)
-		del macs['CHROM']
-		del macs['POS']
+		if 'GENEMINMAC' in options:
+			maccommand = 'vcftools --gzvcf ' + options['INPUTDIR'] + '/' + defaults['VCFFILE'] + ' --keep ' + options['OUTPREFIX'] + ".samplestokeep.txt"  + ' --counts --out ' + options['OUTPREFIX'] + '.allelecounts.temp'
+			os.system(maccommand)
+			LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + maccommand + "\n" )
+			maccommand = 'cat ' + options['OUTPREFIX'] + ".allelecounts.temp.frq.count | sed 's/[A|T|G|C]://g' > " + options['OUTPREFIX'] + '.variantcounts.txt'
+			os.system(maccommand)
+			maccommand = 'rm ' + options['OUTPREFIX'] + '.allelecounts.temp.frq.count > /dev/null'
+			os.system(maccommand)
+			maccommand = 'cat ' + options['OUTPREFIX'] + ".variantcounts.txt | sed 's/[A|T|G|C]://g'| awk '{min=$5;if($6 < $5){min = $6};print $1\"\t\"$2\"\t\"min}' > " + options['OUTPREFIX'] + '.maccounts.txt'
+			os.system(maccommand)
+			macs = pandas.read_table(options['OUTPREFIX'] + '.maccounts.txt')
+			macs['MARKER'] = macs.CHROM.map(str) + ':'  + macs.POS.map(str)
+			del macs['CHROM']
+			del macs['POS']
 		
-		#For all genes (not only the significant ones), get the minor allele count for that gene. Filter by GENEMINMAC and MINVARS, output to genespassingfilters
-		LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + "Filtering genes by MINMAC/MINVARS" + "\n" )
-		for gene in allgenes:
-			mac_gene = 0
-			genename = re.sub(".*_", "", gene)
-			for ms in markerlistforgenes[genename]:
-				
-				macstoadd = macs[macs['MARKER'] == ms]
-				macstoadd = macstoadd[macs.columns[0]]
-				mac_gene = mac_gene + int(macstoadd)
-			if mac_gene > int(GENEMINMAC):
-				if len(markerlistforgenes[genename]) > int(MINVARS):
-					genespassingfilters[gene] = re.sub(".*_", "", gene)
+			#For all genes (not only the significant ones), get the minor allele count for that gene. Filter by GENEMINMAC and MINVARS, output to genespassingfilters
+			LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + "Filtering genes by MINMAC/MINVARS" + "\n" )
+			for gene in allgenes:
+				mac_gene = 0
+				genename = re.sub(".*_", "", gene)
+				for ms in markerlistforgenes[genename]:
+					
+					macstoadd = macs[macs['MARKER'] == ms]
+					macstoadd = macstoadd[macs.columns[0]]
+					mac_gene = mac_gene + int(macstoadd)
+				if mac_gene > int(GENEMINMAC):
+					if len(markerlistforgenes[genename]) > int(MINVARS):
+						genespassingfilters[gene] = re.sub(".*_", "", gene)
 		
-		genespassingfilters = pandas.DataFrame(genespassingfilters.keys())
-		genespassingfilters['GENENAME'] = genespassingfilters[genespassingfilters.columns[0]].replace(r".*_","")
-		genespassingfilters.to_csv(options['OUTPREFIX'] + ".genespassingfilters.txt",index=False,index_label=False,sep="\t")
-		
+			genespassingfilters = pandas.DataFrame(genespassingfilters.keys())
+			genespassingfilters['GENENAME'] = genespassingfilters[genespassingfilters.columns[0]].replace(r".*_","")
+			genespassingfilters.to_csv(options['OUTPREFIX'] + ".genespassingfilters.txt",index=False,index_label=False,sep="\t")
+		else:
+			genespassingfilters = pandas.DataFrame(allgenes)
+			genespassingfilters['GENENAME'] = genespassingfilters[genespassingfilters.columns[0]].replace(r".*_","")
+			genespassingfilters.to_csv(options['OUTPREFIX'] + ".genespassingfilters.txt",index=False,index_label=False,sep="\t")
+
 		os.system('zcat ' + defaults['INPUTDIR'] + '/' + defaults['VCFFILE'] + ' | grep -m 1 "#CHROM" > ' + options['OUTPREFIX'] + '.singlemarkers.vcf')
 		LOGFILE.write(str(time.asctime(time.localtime(time.time()))) + "\t" + 'zcat ' + defaults['INPUTDIR'] + '/' + defaults['VCFFILE'] + ' | grep -m 1 "#CHROM" > ' + options['OUTPREFIX'] + '.singlemarkers.vcf\n')
 		notthere = 0
