@@ -468,7 +468,7 @@ while line_num < int(lines_in_file):
 		filter = options['FILTERPED']
 		filteredrows = evalexpression(filter, pedfile)
 		pedfile = pedfile.iloc[list(filteredrows),:]
-	pedfile[pedfile.columns[1]].to_csv(options['OUTPREFIX']+"samplestokeep.txt", sep="\t",index=False, na_rep='NA')
+	pedfile[pedfile.columns[1]].to_csv(options['OUTPREFIX']+ ".samplestokeep.txt", sep="\t",index=False, na_rep='NA')
 	
 	if len(pedcolumns) > 0:
 		if len(covariates) > 0:
@@ -626,20 +626,21 @@ while line_num < int(lines_in_file):
 		else:
 			output = output.append(outputtest)
 	
-	#the output dataframe contains concatenated results from each test
+	#the output dataframe contains concatenated results from all EPACTS tests run
 	output = output.sort(columns=[output.columns[0], 'BEGIN'],inplace=False)
 	allgenes = output['MARKER_ID']
 	allgenesoutput = output
 	output = output[output.PVALUE <= float(PVALUETHRESHOLD)]
 
-	#if output is empty, then create empty single marker file?
-	
-	#now format the output you get
-	singlemarkertest = 'false'
+	#if output is empty, then ??
+	if len(output) == 0:
+		print("Epacts groupwise test returned no significant results")
+		continue
 
+	singlemarkertest = 'false'
 	#get minvars and minmac
 	genespassingfilters = dict()
-
+	print("Creating input for single marker test...")
 	if ('SINGLEMARKERTEST' not in options) or (options['SINGLEMARKERTEST'] != 'FALSE'):
 		singlemarkertest = 'true'
 		#get the variants in each gene if test if not VT
@@ -649,20 +650,22 @@ while line_num < int(lines_in_file):
 		groupfile = open(finalgroupfilename)
 		markerlistforgenes = dict()
 		print("Reading groupfile\n")
+		#read in groupfile, and get the list of variants belonging to each gene. Store this in markerlistforgenes
 		for line in groupfile:
 			line = line.rstrip()
 			temp = line.split()
 			genename = temp[0]
 			temp = temp[1:]
 
-#			if len(temp) >= int(MINVARS):
 			for tempindex in range(0,len(temp)):
 				temp[tempindex] = re.sub(r"_.*","",temp[tempindex])
 			markerlistforgenes[genename] = temp
-
 		groupfile.close()
-		maccommand = 'vcftools --gzvcf ' + options['INPUTDIR'] + '/' + defaults['VCFFILE'] + ' --counts --out ' + options['OUTPREFIX'] + '.allelecounts.temp'
+
+		#use VCFtools to get the mac for each variant from the vcffile
+		maccommand = 'vcftools --gzvcf ' + options['INPUTDIR'] + '/' + defaults['VCFFILE'] + ' --keep ' + options['OUTPREFIX'] + ".samplestokeep.txt"  + ' --counts --out ' + options['OUTPREFIX'] + '.allelecounts.temp'
 		os.system(maccommand)
+		LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + maccommand + "\n" )
 		maccommand = 'cat ' + options['OUTPREFIX'] + ".allelecounts.temp.frq.count | sed 's/[A|T|G|C]://g' > " + options['OUTPREFIX'] + '.variantcounts.txt'
 		os.system(maccommand)
 		maccommand = 'rm ' + options['OUTPREFIX'] + '.allelecounts.temp.frq.count > /dev/null'
@@ -674,6 +677,8 @@ while line_num < int(lines_in_file):
 		del macs['CHROM']
 		del macs['POS']
 		
+		#For all genes (not only the significant ones), get the minor allele count for that gene. Filter by GENEMINMAC and MINVARS, output to genespassingfilters
+		LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + "Filtering genes by MINMAC/MINVARS" + "\n" )
 		for gene in allgenes:
 			mac_gene = 0
 			genename = re.sub(".*_", "", gene)
@@ -701,9 +706,6 @@ while line_num < int(lines_in_file):
 				notthere = notthere + 1
 				continue
 			markers = markerlistforgenes[genename]
-#			genechr = markers[0].split('_')[0].split(':')[0]
-#			genestart = markers[0].split('_')[0].split(':')[1]
-#			geneend = markers[len(markers)].split('_')[0].split(':')[1]
 			
 			for marker in markers:
 				markerchr = marker.split('_')[0].split(':')[0]
