@@ -16,6 +16,9 @@ Input files:
 -Gene list file: File that restricts analysis to a list of genes/groups
 
 File formats:
+Config file: There are two columns per line. 
+
+
 
 Running:
 
