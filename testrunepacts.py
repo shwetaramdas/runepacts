@@ -695,6 +695,14 @@ while line_num < int(lines_in_file):
 			genespassingfilters = pandas.DataFrame(genespassingfilters.keys())
 			genespassingfilters['GENENAME'] = genespassingfilters[genespassingfilters.columns[0]].replace(r".*_","")
 			genespassingfilters.to_csv(options['OUTPREFIX'] + ".genespassingfilters.txt",index=False,index_label=False,sep="\t")
+		elif 'MINVARS' in options:
+			for gene in allgenes:
+				genename = re.sub(".*_", "", gene)
+				if len(markerlistforgenes[genename]) > int(MINVARS):
+					genespassingfilters[gene] = re.sub(".*_", "", gene)
+			genespassingfilters = pandas.DataFrame(genespassingfilters.keys())
+			genespassingfilters['GENENAME'] = genespassingfilters[genespassingfilters.columns[0]].replace(r".*_","")
+			genespassingfilters.to_csv(options['OUTPREFIX'] + ".genespassingfilters.txt",index=False,index_label=False,sep="\t")			
 		else:
 			genespassingfilters = pandas.DataFrame(allgenes)
 			genespassingfilters['GENENAME'] = genespassingfilters[genespassingfilters.columns[0]].replace(r".*_","")
