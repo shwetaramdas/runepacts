@@ -5,6 +5,9 @@ RunEpacts consists of 2 scripts --a Python script and an R script.
 
 RunEpacts generates a PDF file containing QQ plots and Manhattan plots for the groupwise tests, for the groupwise tests with filtered groups (using only those genes that fit criteria of minimum numbers of variants/minor allele counts), and single-marker results for those significant genes (those genes that meet the p-value cutoff--default is 0.05)
 
+Uses:
+
+
 Running Runepacts:
 Input files:
 1. Compulsory files:
@@ -23,6 +26,7 @@ Config file: There are two columns per line, the first being the parameter name 
 Directories:
 INPUTDIR    Directory where input files are found. Can be local path from the folder containing the python script, or global path [COMPULSORY]
 EPACTSDIR   Directory from which epacts should be run. If not set, the script assumes epacts is in the path. [OPTIONAL]
+OUTPREFIX   Directory where results and output files are written.
 
 Files:
 VCFFILE     Vcf file name. Should be present in the INPUTDIR [COMPULSORY]
@@ -33,7 +37,7 @@ KINSHIPFILE Sample Kinship file used for EMMAX. If not provided, the script will
 MAFFILE     File containing MAF information. This is not recommended, since filtering samples may [OPTIONAL]
 Tests to run:
 MODEL       The phenotype with (if any) covariates to be used. The format is: Phenotype ~ Covariate1+ Covariate2 . The ped file should have a column for the phenotype and each of the covariates.  [COMPULSORY]
-TEST        [COMPULSORY]
+TEST        Which test to run. Example: group=skat [COMPULSORY]
 
 Filtering parameters:
 FILTERPED   An expression that allows you to filter samples using one of the columns in the PEDFILE [OPTIONAL]
