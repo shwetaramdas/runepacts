@@ -16,8 +16,28 @@ Input files:
 -Gene list file: File that restricts analysis to a list of genes/groups
 
 File formats:
-Config file: There are two columns per line. 
+Config file: There are two columns per line, the first being the parameter name and the second the parameter value. The following are the parameters accepted:
+Directories:
+INPUTDIR    Directory where input files are found. Can be local path from the folder containing the python script, or global path [COMPULSORY]
+EPACTSDIR   Directory from which epacts should be run. If not set, the script assumes epacts is in the path. [OPTIONAL]
+Files:
+VCFFILE     Vcf file name. Should be present in the INPUTDIR [COMPULSORY]
+PEDFILE     File containing sample information. Header compulsory. The first five columns have to be Fam_ID,IND_ID,FAT_ID,MOT_ID,SEX respectively. [COMPULSORY]
+ANNOTFILE   [OPTIONAL]
+GROUPFILE   [OPTIONAL]
+KINSHIPFILE Sample Kinship file used for EMMAX. If not provided, the script will use EPACTS to generate a kinship file. [OPTIONAL]
+MAFFILE     [OPTIONAL]
+Tests to run:
+MODEL       [COMPULSORY]
+TEST        [COMPULSORY]
+Filtering parameters:
+FILTERPED   [OPTIONAL]
+FILTERMAF   [OPTIONAL]
+MINVARS     [OPTIONAL]
+GENEMINMAC  [OPTIONAL]
+PVALUETHRESHOLD What p-value cut-off from the group-wise test should be used to classify a gene as significant? Default = 0.05 [OPTIONAL]
 
+Example config file
 
 
 Running:
