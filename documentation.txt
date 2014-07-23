@@ -25,17 +25,18 @@ EPACTSDIR   Directory from which epacts should be run. If not set, the script as
 Files:
 VCFFILE     Vcf file name. Should be present in the INPUTDIR [COMPULSORY]
 PEDFILE     File containing sample information. Header compulsory. The first five columns have to be Fam_ID,IND_ID,FAT_ID,MOT_ID,SEX respectively. [COMPULSORY]
-ANNOTFILE   [OPTIONAL]
+ANNOTFILE   Variant-wise annotation file, with the first column containing the variant, and [OPTIONAL]
 GROUPFILE   [OPTIONAL]
 KINSHIPFILE Sample Kinship file used for EMMAX. If not provided, the script will use EPACTS to generate a kinship file. [OPTIONAL]
-MAFFILE     [OPTIONAL]
+MAFFILE     File containing MAF information. This is not recommended, since filtering samples may [OPTIONAL]
 Tests to run:
-MODEL       [COMPULSORY]
+MODEL       The phenotype with (if any) covariates to be used. The format is: Phenotype ~ Covariate1+ Covariate2 . The ped file should have a column for the phenotype and each of the covariates.  [COMPULSORY]
 TEST        [COMPULSORY]
 
 Filtering parameters:
 FILTERPED   An expression that allows you to filter samples using one of the columns in the PEDFILE [OPTIONAL]
 FILTERMAF   This can either be used as a MAF filter (example 0.05), or an expression that allows filtering of the MAF file (example:  'COLUMN1 < 0.001')[OPTIONAL]
+FILTERANNOT [OPTIONAL]
 MINVARS     Specify the minimum number of variants a gene must have for it to be included in the output [OPTIONAL]
 GENEMINMAC  Specify the minimum number of minor alleles a gene must have [OPTIONAL]
 PVALUETHRESHOLD What p-value cut-off from the group-wise test should be used to classify a gene as significant? Default = 0.05 [OPTIONAL]
