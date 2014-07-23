@@ -1,0 +1,22 @@
+Welcome to the runepacts wiki!
+
+RunEpacts is designed to prepare and/or submit datasets for rare variant association, and to present results from said tests in a format that's easy to interpret visually. 
+RunEpacts consists of 2 scripts --a Python script and an R script. 
+
+Running Runepacts:
+Input files:
+1. Compulsory files:
+-Config file: Specifies parameters and directories
+-VCF file: Can be annotated/unannotated
+-PED file: Sample information files
+
+2. Optional files:
+-Annotation file: Allows users to create non-standard groups of variants
+-Groupfile
+-Gene list file: File that restricts analysis to a list of genes/groups
+
+File formats:
+
+Running:
+
+Run time: 
