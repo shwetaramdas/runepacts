@@ -440,6 +440,9 @@ if (length(unique(phenotypes)) == 2){
 	categorical = 1;
 }
 
+#write out information for carriers to a file
+
+
 if(categorical == 0){				#quantitative phenotype
 		print("Quantitative phenotype")
 		numgenestoinclude = 0
@@ -568,7 +571,7 @@ if(categorical == 0){				#quantitative phenotype
 				colnames(epactsfortest)[colnum] = 'BEGIN'
 			}
 			#get genes
-			
+			##If there is no filter, then genespassingfilters = epactsfortest['MARKER_ID']
 			genespassingfilters = read.table(paste(prefix,'.genespassingfilters.txt',sep=""),header=T,stringsAsFactors=F)
 			filteredresults = merge(epactsfortest, genespassingfilters, by.x='MARKER_ID', by.y='X0',sort=F)
 			
@@ -649,7 +652,17 @@ if(categorical == 0){				#quantitative phenotype
 			# Setup our layouts for the plotting area. 
 			axis_height = 1; # in units of 'lines', this is how tall the variant lines are
 
-			widthtouse = strwidth('4.0e-07',units='in') + strwidth(longest_variant,units='in') + strwidth(longestgenename,units='in') + strwidth(paste(rep('a', extralengthtoadd),collapse=""),units='in') + strwidth(paste(rep('a', 26),collapse=""),units='in')
+			widthtouse = strwidth(longest_variant,units='in',cex=0.6) + 
+				strwidth(longestgenename,units='in',cex=0.6) + 
+				strwidth(paste(rep('a', (extralengthtoadd+10)),collapse=""),units='in',cex=0.6) + 
+				strwidth(paste(rep('a', max(length(longest_beta)+1, nchar('BETA '))),collapse=""),units='in',cex=0.6) + 
+				strwidth(paste(rep('a', max(nchar('4.0e-07'), nchar('VAR.PVAL '))),collapse=""),units='in',cex=0.6) + 
+				strwidth(paste(rep('a', max(length('4.0e-07')+1, nchar('MAF '))),collapse=""),units='in',cex=0.6) +
+				strwidth(paste(rep('a', max(nchar(longest_mac)+1, length('MAC '))),collapse=""),units='in',cex=0.6) 
+			for(testnum in 1:length(tests[[1]])){
+				widthtouse = widthtouse + strwidth('4.0e-07',units='in',cex=0.6);
+			}
+		#	widthtouse = unit(5, "in")
 		#	widthtouse = as.numeric(convertUnit(widthtouse,'char'))
 
 			# Create our outer layout. This is just 3 columns, where the left column
@@ -657,11 +670,12 @@ if(categorical == 0){				#quantitative phenotype
 			# and variant ticks/axes, and the last column will have the variant names. 
 			outer_layout = grid.layout(
 				nrow = 1,
-				ncol = 3,
+				ncol = 4,
 				widths = unit.c(
 					unit(3,'lines'),
 					unit(1,'null'),
-					unit(widthtouse, 'in')
+					unit(widthtouse, 'in'),
+					unit(2, 'lines')
 				)
 			);
 			# Create a viewport using the layout above. 
