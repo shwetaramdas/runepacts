@@ -3,6 +3,8 @@ Welcome to the runepacts wiki!
 RunEpacts is designed to prepare and/or submit datasets for rare variant association, and to present results from said tests in a format that's easy to interpret visually. 
 RunEpacts consists of 2 scripts --a Python script and an R script. 
 
+RunEpacts generates a PDF file containing QQ plots and Manhattan plots for the groupwise tests, for the groupwise tests with filtered groups (using only those genes that fit criteria of minimum numbers of variants/minor allele counts), and single-marker results for those significant genes (those genes that meet the p-value cutoff--default is 0.05)
+
 Running Runepacts:
 Input files:
 1. Compulsory files:
@@ -43,7 +45,7 @@ PVALUETHRESHOLD What p-value cut-off from the group-wise test should be used to 
 
 Example config file
 
+To run:
+> python testrunepacts.py --config configfile.txt
 
-Running:
-
-Run time: 
+Run time:
