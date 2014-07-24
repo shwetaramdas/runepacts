@@ -48,6 +48,25 @@ GENEMINMAC  Specify the minimum number of minor alleles a gene must have [OPTION
 PVALUETHRESHOLD What p-value cut-off from the group-wise test should be used to classify a gene as significant? Default = 0.05 [OPTIONAL]
 
 Example config file
+EPACTSDIR /net/fantasia/home/hmkang/bin/epactsTest/bin
+INPUTDIR	/net/snowwhite/home/sramdas/final.testing/fullvcf
+VCFFILE	wave2.clean.vcf.gz
+PEDFILE	Wave3_28feb2013_transformations_allexomes_cleanVCF_exclethnicrelated_n9960_alltraits_w_mega10PCs.ped
+ANNOTFILE	w2.var.merged.tsv.gz
+PEDCOLUMNS	FAM_ID,IND_ID,FAT_ID,MOT_ID,SEX,LDLcalexcmed_ALL_RAW_INV,C1,C2,C3,C4,C5,C6,C7,C8,C9,C10
+OUTPREFIX	outputfullvcf.onetestonly.july23/W3.skat.pcs.sex
+MODEL	LDLcalexcmed_ALL_RAW_INV ~ SEX + C1 +C2 + C3 + C4 + C5 + C6 + C7 + C8 + C9 + C10
+PVALUETHRESHOLD	0.01
+FILTERANNOT	MOST_DEL_SCORE < 3
+SINGLEMARKERTEST	q.linear
+ANNOTCOLUMNS	VEP_TAG
+GROUPFILE	W3.skat.pcs.sex_groups.txt
+MINVARS	2
+GENEMINMAC	5
+TEST	group=skat
+PROCESS
+
+
 
 To run:
 > python testrunepacts.py --config configfile.txt
