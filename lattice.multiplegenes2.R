@@ -573,7 +573,7 @@ if(categorical == 0){				#quantitative phenotype
 			#get genes
 			##If there is no filter, then genespassingfilters = epactsfortest['MARKER_ID']
 			genespassingfilters = read.table(paste(prefix,'.genespassingfilters.txt',sep=""),header=T,stringsAsFactors=F)
-			filteredresults = merge(epactsfortest, genespassingfilters, by.x='MARKER_ID', by.y='X0',sort=F)
+			filteredresults = merge(epactsfortest, genespassingfilters, by.x='MARKER_ID', by.y=1,sort=F)
 			
 			#plotting all variants
 			variantstoplot = epactsfortest['PVALUE']
@@ -629,7 +629,7 @@ if(categorical == 0){				#quantitative phenotype
 
 			print(mhtplot)
 		}
-
+	
 		while(numgenesplotted < totalgenes){
 			numgenesplotted = numgenesplotted + numgenestoinclude
 			genes = genes[1:numgenestoinclude]
@@ -654,7 +654,7 @@ if(categorical == 0){				#quantitative phenotype
 
 			widthtouse = strwidth(longest_variant,units='in',cex=0.6) + 
 				strwidth(longestgenename,units='in',cex=0.6) + 
-				strwidth(paste(rep('a', (extralengthtoadd+10)),collapse=""),units='in',cex=0.6) + 
+				strwidth(paste(rep('a', (extralengthtoadd+20)),collapse=""),units='in',cex=0.6) + 
 				strwidth(paste(rep('a', max(length(longest_beta)+1, nchar('BETA '))),collapse=""),units='in',cex=0.6) + 
 				strwidth(paste(rep('a', max(nchar('4.0e-07'), nchar('VAR.PVAL '))),collapse=""),units='in',cex=0.6) + 
 				strwidth(paste(rep('a', max(length('4.0e-07')+1, nchar('MAF '))),collapse=""),units='in',cex=0.6) +
@@ -822,8 +822,8 @@ if(categorical == 0){				#quantitative phenotype
 					));
 					#draw marker axes boundaries
 
-					grid.rect();
-
+					#grid.rect();
+					
 					# Get the phenotype values for just those people with the rare genotype and hets. 
 					rare_pheno = as.numeric(markerrows[markerrows['GENOTYPE'] == rare_geno,phenotype])
 					hets_pheno = as.numeric(markerrows[markerrows['GENOTYPE'] == '0/1',phenotype])
@@ -897,13 +897,30 @@ if(categorical == 0){				#quantitative phenotype
 						y = unit(c(0,1),'npc'),
 						gp = gpar(col="dark green")
 					);			
+					grid.lines(
+						x=unit(0, 'npc'),
+						y = unit(c(0,1),'npc'),
+						gp = gpar(col="black")
+					);
+					grid.lines(
+						x=unit(1, 'npc'),
+						y = unit(c(0,1),'npc'),
+						gp = gpar(col="black")
+					);
+
 					tempx = convertUnit(unit(1,'npc')+convertUnit(unit(widthtouse,'in'), 'npc'), 'native')
 					tempx = convertUnit(tempx, 'npc')
+					
 					if(i < num_variants){
 						grid.lines(
 							x = unit(c(1,tempx),'npc'),
 							y = unit(c(0,0), 'npc'),
 							gp= gpar(col="grey", lty="dotdash")
+						)
+						grid.lines(
+							x = unit(c(0,1), 'npc'),
+							y = unit(c(0,0), 'npc'),
+							gp = gpar(col="grey", lty = "dotdash")
 						)
 					}
 					# Go back up so we can push another viewport within the layout (the viewport higher up in the tree.) 	
@@ -939,7 +956,7 @@ if(categorical == 0){				#quantitative phenotype
 			grid.text("Percent of Total",x = unit(-4,'lines'),rot = 90);
 			if(length(covariates) > 0){adjustedpheno = paste("Adjusted ", phenotype,sep="");}
 			else{adjustedpheno = phenotype}
-			grid.text(paste(adjustedpheno, "Distribution: ", length(phenotypes), "samples", sep=" "), x=unit(16, 'char'), y=unit(0.97, 'npc'))
+			grid.text(paste(adjustedpheno, ": ", length(phenotypes), "samples", sep=" "), x=unit(16, 'char'), y=unit(0.97, 'npc'))
 			panel.rug(x=max(phenotyperesiduals),y=0)
 			panel.rug(x=min(phenotyperesiduals),y=0)
 			upViewport(1);
