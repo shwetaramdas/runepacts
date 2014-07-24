@@ -72,8 +72,12 @@ TEST	group=skat
 PROCESS
 
 
-
 To run:
 > python testrunepacts.py --config configfile.txt
 
-Run time:
+Example Runs:
+1. To run a single test with a single set of parameters
+
+2. To run multiple tests with the same set of input files, but different parameters
+
+3. To run multiple tests with different input files, different parameters
