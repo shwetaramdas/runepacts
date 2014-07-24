@@ -17,7 +17,7 @@ Input files:
 
 2. Optional files:
 -Annotation file: Allows users to create non-standard groups of variants
--Groupfile
+-Groupfile: Pre-created group file in the EPACTS format, if this exists
 -Gene list file: File that restricts analysis to a list of genes/groups
 
 File formats:
