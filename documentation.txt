@@ -1,12 +1,11 @@
 Welcome to the runepacts wiki!
 
 RunEpacts is designed to prepare and/or submit datasets for rare variant association, and to present results from said tests in a format that's easy to interpret visually. 
-RunEpacts consists of 2 scripts --a Python script and an R script. 
-
+RunEpacts consists of 2 scripts:a Python script and an R script. Runepacts can also be used to submit the same set of input files to EPACTS for multiple runs with multiple parameters without separate formating for each run.
 RunEpacts generates a PDF file containing QQ plots and Manhattan plots for the groupwise tests, for the groupwise tests with filtered groups (using only those genes that fit criteria of minimum numbers of variants/minor allele counts), and single-marker results for those significant genes (those genes that meet the p-value cutoff--default is 0.05)
 
 Uses:
-
+1. To submit 
 
 Running Runepacts:
 Input files:
@@ -21,12 +20,13 @@ Input files:
 -Gene list file: File that restricts analysis to a list of genes/groups
 
 File formats:
-Config file: There are two columns per line, the first being the parameter name and the second the parameter value. The following are the parameters accepted:
-
+Config file: There are two columns per line, the first being the parameter name and the second the parameter value. When all parameters have been input, the line 'PROCESS' (with only one column, and no parameter value in the 2nd column) submits a job to the script, which in turn process the paramters and input files into an epacts run.
+Every instance of 'PROCESS' must have a unique instance of 'OUTPREFIX'
+The following are the parameters that can be used in the config file: 
 Directories:
 INPUTDIR    Directory where input files are found. Can be local path from the folder containing the python script, or global path [COMPULSORY]
 EPACTSDIR   Directory from which epacts should be run. If not set, the script assumes epacts is in the path. [OPTIONAL]
-OUTPREFIX   Directory where results and output files are written.
+OUTPREFIX   Directory where results and output files are written. [COMPULSORY]
 
 Files:
 VCFFILE     Vcf file name. Should be present in the INPUTDIR [COMPULSORY]
@@ -46,6 +46,11 @@ FILTERANNOT [OPTIONAL]
 MINVARS     Specify the minimum number of variants a gene must have for it to be included in the output [OPTIONAL]
 GENEMINMAC  Specify the minimum number of minor alleles a gene must have [OPTIONAL]
 PVALUETHRESHOLD What p-value cut-off from the group-wise test should be used to classify a gene as significant? Default = 0.05 [OPTIONAL]
+
+To run: 
+PROCESS
+
+
 
 Example config file
 EPACTSDIR /net/fantasia/home/hmkang/bin/epactsTest/bin
