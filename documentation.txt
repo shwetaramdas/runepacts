@@ -36,7 +36,7 @@ GROUPFILE   [OPTIONAL]
 KINSHIPFILE Sample Kinship file used for EMMAX. If not provided, the script will use EPACTS to generate a kinship file. [OPTIONAL]
 MAFFILE     File containing MAF information. This is not recommended, since filtering samples may [OPTIONAL]
 Tests to run:
-MODEL       The phenotype with (if any) covariates to be used. The format is: Phenotype ~ Covariate1+ Covariate2 . The ped file should have a column for the phenotype and each of the covariates.  [COMPULSORY]
+MODEL       The phenotype with (if any) covariates to be used. The format is: Phenotype ~ Covariate1+ Covariate2. The ped file should have a column for the phenotype and each of the covariates. [COMPULSORY]
 TEST        Which test to run. Example: group=skat [COMPULSORY]
 
 Filtering parameters:
@@ -49,8 +49,6 @@ PVALUETHRESHOLD What p-value cut-off from the group-wise test should be used to 
 
 To run: 
 PROCESS
-
-
 
 Example config file
 EPACTSDIR /net/fantasia/home/hmkang/bin/epactsTest/bin
@@ -70,7 +68,6 @@ MINVARS	2
 GENEMINMAC	5
 TEST	group=skat
 PROCESS
-
 
 To run:
 > python testrunepacts.py --config configfile.txt
