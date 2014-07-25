@@ -107,7 +107,6 @@ def evalexpression(exprs, filetofilter):
 def create_group_file(outfilename, vcffilename, annofile, maffilterfile, maffilter, DELIM_MAF, DELIM_ANNO):
 	vcfname = vcffilename
 	trimmedvcf = options['OUTPREFIX'] + vcfname.replace('.vcf.gz', '').replace(options['INPUTDIR'] + '/',"")+'_trimmed.txt'
-
 	tofilter = False
 	if maffilterfile != 'NA':
 		tofilter = True
@@ -115,11 +114,11 @@ def create_group_file(outfilename, vcffilename, annofile, maffilterfile, maffilt
 		snprowstokeep = evalexpression(maffilter, maffile)
 		passsnps = maffile.iloc[list(snpsrowstokeep),:]
 		passsnps = passsnps['SNP']
-	elif (maffilterfile == 'NA') and (maffilter != "NA"):	#in this case, we have to create an MAF file and then 
+	elif (maffilterfile == 'NA') and (maffilter != "NA"):	#in this case, we have to create an MAF file
 		tofilter = True
 		print("filtering by MAF")
 		LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t filtering by MAF\n")
-		command = 'vcftools --gzvcf ' + options['INPUTDIR'] + "/" + options['VCFFILE'] + ' --keep '+ options['OUTPREFIX'] + 'samplestokeep.txt ' + '--freq2 --out ' + options['OUTPREFIX'] + '> /dev/null'
+		command = 'vcftools --gzvcf ' + options['INPUTDIR'] + "/" + options['VCFFILE'] + ' --keep '+ options['OUTPREFIX'] + '.samplestokeep.txt ' + '--freq2 --out ' + options['OUTPREFIX'] + '> /dev/null'
 		os.system(command)
 		LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + command + "\n")
 		command = 'zcat ' + options['INPUTDIR'] + "/" + options['VCFFILE'] + ' | grep -v "^##" | cut -f 1,2,3 > ' + options['OUTPREFIX'] + '.variantids.txt'
@@ -150,13 +149,13 @@ def create_group_file(outfilename, vcffilename, annofile, maffilterfile, maffilt
 	for line in filename:
 		line = line.rstrip()
 		temp = line.split()
-		if (not tofilter) or (temp[0] in passsnps):
-			genes.append(temp[4])
-			snps.append(temp[0])
-			if '-' in temp[1]:
-				bedfile.write(temp[1].split(':')[0] + "\t" + temp[1].split(':')[1].split('-')[0] + "\t" + temp[1].split(':')[1].split('-')[1] + "\n")
+		if (not tofilter) or (temp[defaults['ANNOTVARCOL']] in passsnps):
+			genes.append(temp[defaults['ANNOTGENECOL']])
+			snps.append(temp[defaults['ANNOTVARCOL']])
+			if '-' in temp[defaults['ANNOTPOSCOL']]:
+				bedfile.write(temp[defaults['ANNOTPOSCOL']].split(':')[0] + "\t" + temp[defaults['ANNOTPOSCOL']].split(':')[1].split('-')[0] + "\t" + temp[defaults['ANNOTPOSCOL']].split(':')[1].split('-')[1] + "\n")
 			else:
-				bedfile.write(temp[1].split(':')[0] + "\t" + temp[1].split(':')[1] + "\t" + str(int(temp[1].split(':')[1])+1) + "\n")
+				bedfile.write(temp[defaults['ANNOTPOSCOL']].split(':')[0] + "\t" + temp[defaults['ANNOTPOSCOL']].split(':')[1] + "\t" + str(int(temp[defaults['ANNOTPOSCOL']].split(':')[1])+1) + "\n")
 	filename.close()
 	bedfile.close()
 	tabixcommand = 'tabix ' + vcfname + ' -B ' + options['OUTPREFIX'] + vcfname.replace('.vcf.gz', '').replace(options['INPUTDIR'] + '/', '') + '_trimmed.bed | grep -v "#" > ' + trimmedvcf 
@@ -287,6 +286,9 @@ defaults['EPACTSGROUPFILE'] = 'NA'
 defaults['VERBOSE'] = 'OFF'
 defaults['GENELIST'] = 'NA'
 defaults['MINMAC'] = 0
+defaults['ANNOTGENECOL'] = 4
+defaults['ANNOTVARCOL'] = 0
+defaults['ANNOTPOSCOL'] = 1
 
 ##open log file to write to
 logfilename = "runepacts_" +  time.asctime(time.localtime(time.time())).replace(" ","_") + ".log"
@@ -365,6 +367,12 @@ while line_num < int(lines_in_file):
 		GENEMINMAC = options['GENEMINMAC']
 	else:
 		GENEMINMAC = 5
+	if 'ANNOTGENECOL' in options.keys():
+		defaults['ANNOTGENECOL'] = int(options['ANNOTGENECOL']) - 1
+	if 'ANNOTVARCOL' in options.keys():
+		defaults['ANNOTVARCOL'] = int(options['ANNOTVARCOL']) - 1
+	if 'ANNOTPOSCOL' in options.keys():
+		defaults['ANNOTPOSCOL'] = int(options['ANNOTPOSCOL']) - 1
 	#now you have all the options for the test
 	#this block sets the default options (which change if specified by the user)
 	kinshipcommand = ''
@@ -477,8 +485,8 @@ while line_num < int(lines_in_file):
 					pedcolumns.append(covariates[i].strip())
 		pedfile = pedfile.loc[:,pedcolumns]
 
-	#default columns
 	col0 = pedfile.columns[0]
+	#default columns
 	pedfile.rename(columns={col0:'#FAM_ID'}, inplace=True)
 	col1 = pedfile.columns[1]
 	pedfile.rename(columns={col1:'IND_ID'}, inplace=True)
@@ -663,6 +671,7 @@ while line_num < int(lines_in_file):
 		groupfile.close()
 
 		#use VCFtools to get the mac for each variant from the vcffile
+
 		if 'GENEMINMAC' in options:
 			maccommand = 'vcftools --gzvcf ' + options['INPUTDIR'] + '/' + defaults['VCFFILE'] + ' --keep ' + options['OUTPREFIX'] + ".samplestokeep.txt"  + ' --counts --out ' + options['OUTPREFIX'] + '.allelecounts.temp'
 			os.system(maccommand)
