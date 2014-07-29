@@ -70,7 +70,7 @@ GENEMINMAC  5
 TEST	group=skat
 PROCESS
 
-To run:
+To run RunEpacts:
 > python testrunepacts.py --config configfile.txt
 
 Example Runs:
