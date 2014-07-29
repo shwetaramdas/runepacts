@@ -1,6 +1,6 @@
 Welcome to the runepacts wiki!
 
-RunEpacts is designed to prepare and/or submit datasets for rare variant association, and to present results from said tests in a format that's easy to interpret visually. 
+RunEpacts is designed to prepare and/or submit datasets to EPACTS for rare variant association, and to present results from said tests in a format that's easy to interpret visually. 
 RunEpacts consists of 2 scripts:a Python script and an R script. Runepacts can also be used to submit the same set of input files to EPACTS for multiple runs with multiple parameters without separate formating for each run.
 RunEpacts generates a PDF file containing QQ plots and Manhattan plots for the groupwise tests, for the groupwise tests with filtered groups (using only those genes that fit criteria of minimum numbers of variants/minor allele counts), and single-marker results for those significant genes (those genes that meet the p-value cutoff--default is 0.05)
 
