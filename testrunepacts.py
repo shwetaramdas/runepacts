@@ -29,6 +29,42 @@ import pylab
 import random
 
 #FUNCTIONS
+def calculatemaf(inputvcf,outprefix,samplestokeep,sepchr=False):
+	#get the header from the vcf and figure out sample columns to keep
+	sampleline = subprocess.Popen('cat '+ args[0] +' | wc -l', shell=True,stdout=subprocess.PIPE)
+	sampleline = sampleline.communicate()[0].rstrip().split()
+	colstokeep = "1,2"
+	samplestokeeplist = list(samplestokeep)
+	for columnnum in range(0,len(sampleline)):
+		if sampleline[columnnum] in samplestokeeplist:
+			colstokeep = colstokeep + ',' + str(columnnum)
+	command = 'zcat ' + inputvcf + ' | grep -v "#" | cut -f ' + colstokeep + "| sed 's/:" + '[^\t]*//g' + "' | sed '" + 's/0\/0/0/g' + "' | sed 's/0\/1/1/g' | sed 's/1\/1/2/g' | sed 's/\.\/\./-1/g'  > " + inputvcf.replace('.gz','') + '_GENOTYPES'
+	os.system(command)
+	genotypefile = pandas.read_table(inputvcf.replace('.gz','') + '_GENOTYPES',header=None)
+	#remove first two columns chr and position
+	genotypefile = genotypefile.set_index(genotypefile[genotypefile.columns[0]].map(str) + "\t" + genotypefile[genotypefile.columns[1]].map(str))
+	del genotypefile[genotypefile.columns[0]]
+	del genotypefile[genotypefile.columns[0]]
+	frq1 = []
+	frq2 = []
+	nalleles = []
+	n_chr = []
+	for index,row in genotypefile.iterrows():
+		counts = row.value_counts()
+		n0 = counts.iloc[0]
+		n1 = counts.iloc[1]
+		n2 = counts.iloc[2]
+		frq2.append((0.5*n1+n2)/(n0+n1+n2))
+		frq1.append((0.5*n1+n0)/(n0+n1+n2))
+		nalleles.append(2)
+		n_chr.append(n0+n1+n2)
+	genotypefile['N_ALLELES'] = nalleles
+	genotypefile['N_CHR'] = n_chr
+	genotypefile['FREQ1'] = frq1
+	genotypefile['FREQ2'] = frq2
+	
+	genotypefile.to_csv(file=outprefix + '.frq',sep="\t",index=True,index_label=True)
+
 #this function just performs a filter on a column (or multiple columns) of a file by reading it in as a numpy table.
 def evalexpression(exprs, filetofilter):
 	exprs = exprs.strip()
