@@ -1,3 +1,19 @@
+#def bootstrap_lib(lib_path):
+#  import os, sys
+#  from glob import glob#
+#
+#  exist_eggs = [os.path.basename(i) for i in sys.path];
+#
+# sys.path.insert(1,lib_path);#
+
+#  for d in glob(os.path.join(lib_path,"*egg")):
+#    if os.path.basename(d) in exist_eggs:
+#      continue;
+#    else:
+#      sys.path.insert(1,d);
+
+#bootstrap_lib("/net/snowwhite/home/welchr/lib/python2.7/site-packages");
+
 import sys
 import os
 import re
@@ -118,11 +134,26 @@ def create_group_file(outfilename, vcffilename, annofile, maffilterfile, maffilt
 		tofilter = True
 		print("filtering by MAF")
 		LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t filtering by MAF\n")
-		command = 'vcftools --gzvcf ' + options['INPUTDIR'] + "/" + options['VCFFILE'] + ' --keep '+ options['OUTPREFIX'] + '.samplestokeep.txt ' + '--freq2 --out ' + options['OUTPREFIX'] + '> /dev/null'
-		os.system(command)
-		LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + command + "\n")
-		command = 'zcat ' + options['INPUTDIR'] + "/" + options['VCFFILE'] + ' | grep -v "^##" | cut -f 1,2,3 > ' + options['OUTPREFIX'] + '.variantids.txt'
-		os.system(command)
+		if 'SEPCHR' not in options:
+			command = 'vcftools --gzvcf ' + options['INPUTDIR'] + "/" + options['VCFFILE'] + ' --keep '+ options['OUTPREFIX'] + '.samplestokeep.txt ' + '--freq2 --out ' + options['OUTPREFIX'] + '> /dev/null'
+			os.system(command)
+			LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + command + "\n")
+			command = 'zcat ' + options['INPUTDIR'] + "/" + options['VCFFILE'] + ' | grep -v "^##" | cut -f 1,2,3 > ' + options['OUTPREFIX'] + '.variantids.txt'
+			os.system(command)
+		else:
+			vcffilenametomatch = options['VCFFILE'].split('chr1')
+			for f in os.listdir(options['INPUTDIR']):
+				match = True
+				for f2 in vcffilenametomatch:
+					if f2 not in f:
+						match = False
+						break
+				if match:
+					command = 'vcftools --gzvcf ' + options['INPUTDIR'] + "/" + f + ' --keep '+ options['OUTPREFIX'] + '.samplestokeep.txt ' + '--freq2 --out ' + options['OUTPREFIX'] + '.TEMP > /dev/null'
+					os.system(command)
+					command = 'zcat ' + options['INPUTDIR'] + "/" + f + ' | grep -v "^##" | cut -f 1,2,3 >> ' + options['OUTPREFIX'] + '.variantids.txt'
+					os.system(command)
+					os.system("cat " + options['OUTPREFIX'] + '.TEMP.frq >> ' + options['OUTPREFIX'] + ".frq")
 		maffile = pandas.read_table(options['OUTPREFIX'] + ".frq",skiprows=1,header=None)
 		
 		allidsfile = pandas.read_table(options['OUTPREFIX'] + '.variantids.txt',header=0)
@@ -308,7 +339,7 @@ while line_num < int(lines_in_file):
 		splitline = line.split("\t")
 		if len(splitline) < 2:
 			print("Argument " + splitline[0] + 'has no value\n')
-			LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + "Argument " + splitline[0] + 'has no value\n')
+			LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + "Argument " + splitline[0] + "has no value\n")
 			sys.exit()
 		if splitline[0] == 'TEST':
 			TESTS.append(splitline[1])
@@ -323,9 +354,9 @@ while line_num < int(lines_in_file):
 	numtests = numtests + 1
 	
 	#TO COMPLETE LATER: CHECK IF ALL THE REQUIRED OPTIONS FOR THIS TEST ARE DEFINED, and the ones which are defined are valid
-	check_file_exists(options['INPUTDIR']+'/'+options['VCFFILE'])
-	check_file_exists(options['INPUTDIR']+'/'+options['PEDFILE'])
-	check_file_exists(options['INPUTDIR']+'/'+options['ANNOTFILE'])
+#	check_file_exists(options['INPUTDIR']+'/'+options['VCFFILE'])
+#	check_file_exists(options['INPUTDIR']+'/'+options['PEDFILE'])
+#	check_file_exists(options['INPUTDIR']+'/'+options['ANNOTFILE'])
 
 	#if folder to write files in does not exist, make it
 	if not os.path.isdir(re.sub('/.*', '', options['OUTPREFIX'])):
@@ -343,7 +374,7 @@ while line_num < int(lines_in_file):
 		check_file_exists(options['INPUTDIR'] + '/' + options['GROUPFILE'])
 	if 'ANNOTFILE' in options.keys():
 		defaults['ANNOTFILE'] = options['ANNOTFILE']
-		check_file_exists(options['INPUTDIR'] + '/' + options['ANNOTFILE'])
+#		check_file_exists(options['INPUTDIR'] + '/' + options['ANNOTFILE'])
 	if 'MAFFILE' in options.keys():
 		defaults['MAFFILE'] = options['MAFFILE']
 	if 'KINSHIPFILE' in options.keys():
@@ -534,44 +565,62 @@ while line_num < int(lines_in_file):
 		LOGFILE.write(str(time.asctime(time.localtime(time.time()))) + "\t" + "Creating groupfile...\n")
 
 		if 'ANNOTFILE' not in options:
-			annotatecommand = epacts + ' anno -in ' + defaults['INPUTDIR'] + '/' + defaults['VCFFILE'] + ' -out ' + options['OUTPREFIX'] + '.anno.vcf.gz'
-			os.system(annotatecommand)
-			annotatecommand = epacts + ' make-group --vcf ' + options['OUTPREFIX'] + '.anno.vcf.gz --out ' + options['OUTPREFIX'] + '.annotated.txt --format epacts'
-			os.system(annotatecommand)
-			finalgroupfilename = options['OUTPREFIX'] + '.annotated.txt'
-		if '.gz' in options['ANNOTFILE']:
-			cat = 'zcat '
-		else:
-			cat = 'cat '
-
-		if 'FILTERANNOT' in options.keys():
-			print "Filtering annotations...\n"
-			LOGFILE.write("Filtering annotations...\n")
-			filter = options['FILTERANNOT']
-			annofile = pandas.read_table(defaults['INPUTDIR'] + '/' + options['ANNOTFILE'], header=0,sep="\t",compression='gzip')
-			annoheadersplit = annofile.columns
-			
-			annorowstokeep = evalexpression(filter, annofile)
-			annofile = annofile.iloc[list(annorowstokeep),:]
-			annofile.to_csv(defaults['INPUTDIR'] + '/' + options['ANNOTFILE'].replace('.gz', '') + '.filtered.txt',sep="\t", index=False)
-			print("still filtering...\n")
-			if 'MAFFILE' not in options.keys():
-				create_group_file(options['OUTPREFIX'] + '_groups.txt', defaults['INPUTDIR'] + '/' + defaults['VCFFILE'], \
-								defaults['INPUTDIR'] + '/' + options['ANNOTFILE'].replace('.gz', '') + '.filtered.txt', 'NA', defaults['FILTERMAF'], DELIM_MAF, DELIM_ANNO)
+			if 'SEPCHR' not in options:
+				annotatecommand = epacts + ' anno -in ' + defaults['INPUTDIR'] + '/' + defaults['VCFFILE'] + ' -out ' + options['OUTPREFIX'] + '.anno.vcf.gz'
+				os.system(annotatecommand)
+				annotatecommand = epacts + ' make-group --vcf ' + options['OUTPREFIX'] + '.anno.vcf.gz --out ' + options['OUTPREFIX'] + '.annotated.txt --format epacts --nonsyn'
+				print(annotatecommand)
+				os.system(annotatecommand)
+				finalgroupfilename = options['OUTPREFIX'] + '.annotated.txt'
 			else:
-				create_group_file(options['OUTPREFIX'] + '_groups.txt',defaults['INPUTDIR'] + '/' + options['VCFFILE'], \
-								defaults['INPUTDIR'] + '/' + options['ANNOTFILE'].replace('.gz', '') + '.filtered.txt', \
+				vcffilenametomatch = options['VCFFILE'].split('chr1')
+				for f in os.listdir(options['INPUTDIR']):
+					match = True
+					for f2 in vcffilenametomatch:
+						if f2 not in f:
+							match = False
+							break
+					if match:
+						annotatecommand = epacts + ' anno -in ' + defaults['INPUTDIR'] + '/' + f + ' -out ' + options['OUTPREFIX'] + '.' + f
+						os.system(annotatecommand)
+						annotatecommand = epacts + ' make-group --vcf ' + options['OUTPREFIX'] + '.' + f + ' --out ' + options['OUTPREFIX'] + '.annotated.' + f  + ' --format epacts'
+						os.system(annotatecommand)
+						annotatecommand = 'cat ' + options['OUTPREFIX'] + '.' + f + ' >> ' + options['OUTPREFIX'] + '.annotated.txt'
+						os.system(annotatecommand)
+				finalgroupfilename = options['OUTPREFIX'] + '.annotated.txt' 
+		
+		else:
+			if '.gz' in options['ANNOTFILE']:
+				cat = 'zcat '
+			else:
+				cat = 'cat '
+
+			if 'FILTERANNOT' in options.keys():
+				print "Filtering annotations...\n"
+				LOGFILE.write("Filtering annotations...\n")
+				filter = options['FILTERANNOT']
+				annofile = pandas.read_table(defaults['INPUTDIR'] + '/' + options['ANNOTFILE'],	header=0,sep="\t",compression='gzip')
+				annoheadersplit = annofile.columns
+				
+				annorowstokeep = evalexpression(filter, annofile)
+				annofile = annofile.iloc[list(annorowstokeep),:]
+				annofile.to_csv(defaults['INPUTDIR'] + '/' + options['ANNOTFILE'].replace('.gz', '') + '.filtered.txt',sep="\t", index=False)
+				print("still filtering...\n")
+				if 'MAFFILE' not in options.keys():
+					create_group_file(options['OUTPREFIX'] + '_groups.txt', defaults['INPUTDIR'] + '/' + defaults['VCFFILE'], defaults['INPUTDIR'] + '/' + options['ANNOTFILE'].replace('.gz', '') + '.filtered.txt', 'NA', defaults['FILTERMAF'], DELIM_MAF, DELIM_ANNO)
+				else:
+					create_group_file(options['OUTPREFIX'] + '_groups.txt',defaults['INPUTDIR'] + '/' + options['VCFFILE'], defaults['INPUTDIR'] + '/' + options['ANNOTFILE'].replace('.gz', '') + '.filtered.txt', \
 								defaults['INPUTDIR'] + '/' + options['MAFFILE'] , defaults['FILTERMAF'], DELIM_MAF, DELIM_ANNO)
 
-		else:
-			if 'MAFFILE' not in options.keys():
-				create_group_file(options['OUTPREFIX'] + '_groups.txt', defaults['INPUTDIR'] + '/' + defaults['VCFFILE'], \
-								defaults['INPUTDIR'] + '/' + defaults['ANNOTFILE'], 'NA', 'NA', DELIM_MAF, DELIM_ANNO)
 			else:
-				create_group_file(options['OUTPREFIX'] + '_groups.txt', defaults['INPUTDIR'] + '/' + defaults['VCFFILE'], \
+				if 'MAFFILE' not in options.keys():
+					create_group_file(options['OUTPREFIX'] + '_groups.txt', defaults['INPUTDIR'] + '/' + defaults['VCFFILE'], \
+								defaults['INPUTDIR'] + '/' + defaults['ANNOTFILE'], 'NA', 'NA', DELIM_MAF, DELIM_ANNO)
+				else:
+					create_group_file(options['OUTPREFIX'] + '_groups.txt', defaults['INPUTDIR'] + '/' + defaults['VCFFILE'], \
 								defaults['INPUTDIR'] + '/' + defaults['MAFFILE'], defaults['FILTERMAF'], DELIM_MAF, DELIM_ANNO)
 
-		finalgroupfilename = options['OUTPREFIX'] + '_groups.txt'
+			finalgroupfilename = options['OUTPREFIX'] + '_groups.txt'
 	else:
 		finalgroupfilename = defaults['INPUTDIR'] + '/' + defaults['GROUPFILE']
 
@@ -755,7 +804,7 @@ while line_num < int(lines_in_file):
 		
 		#read annot file if it exists
 		annotations = dict()
-		if ('ANNOTCOLUMNS' in options) and ('ANNOTFILE' in defaults):
+		if ('ANNOTCOLUMNS' in options) and ('ANNOTFILE' in options):
 			annotation = pandas.read_table(defaults['INPUTDIR'] + '/' + defaults['ANNOTFILE'],compression="gzip")
 			annotation = annotation.rename(columns={annotation.columns[4]:"GROUP"})
 		
@@ -805,7 +854,8 @@ while line_num < int(lines_in_file):
 			for marker in markerlistforgenes[genename]:
 				markerresult = singlemarkerresults[singlemarkerresults.MARKER_ID == marker]
 				mac = mac + markerresult.MAC[markerresult.MAC.index[0]]
-				if (len(markerresult) > 0) & (markerresult['PVALUE'] >=0):
+				
+				if (len(markerresult) > 0) and not (pandas.isnull(markerresult.PVALUE[markerresult.index[0]])):
 					genotypes = singlemarkervcfs.loc[marker]
 					genotypes = genotypes.str.replace(':.*','')
 					genotypes = genotypes[genotypes != 0]
@@ -866,6 +916,7 @@ while line_num < int(lines_in_file):
 			del merged2['MARKER_x']
 			merged2 = merged2.rename(columns={"MARKER_y":"MARKERNAME"})
 			allvariants = merged2
+		allvariants = allvariants.rename(columns={"MARKER":"MARKER_ID"})
 		allvariants.to_csv(options['OUTPREFIX'] + ".allvariants.txt",sep="\t",index=False, index_label=False)		
 	
 	LOGFILE.write(str(time.asctime(time.localtime(time.time()))) + "\t" + "Creating output plots for each significant gene..." + "\n")
