@@ -38,7 +38,7 @@ def calculatemaf(inputvcf,outprefix,samplestokeep,sepchr=False):
 	for columnnum in range(10,len(sampleline)):
 		if sampleline[columnnum] in samplestokeeplist:
 			colstokeep = colstokeep + ',' + str(columnnum)
-	command = 'zcat ' + inputvcf + ' | grep -v "#" | cut -f ' + colstokeep + "| sed 's/:" + '[^\\t]*//g' + "' | sed '" + 's/0\/0/0/g' + "' | sed 's/0\/1/1/g' | sed 's/1\/1/2/g' | sed 's/\.\/\./-1/g'  > " + inputvcf.replace('.gz','') + '_GENOTYPES'
+	command = 'zcat ' + inputvcf + ' | grep -v "#" | cut -f ' + colstokeep + "| sed 's/:" + '[^\\t]*//g' + "' | sed '" + 's/0\/0/0/g' + "' | sed 's/0\/1/1/g' | sed 's/1\/1/2/g' | sed 's/\.\/\./-1/g' | sed 's/0\/./1/g' | sed 's/.\/./2/g' > " + inputvcf.replace('.gz','') + '_GENOTYPES'
 	print(command)
 	os.system(command)
 	genotypefile = pandas.read_table(inputvcf.replace('.gz','') + '_GENOTYPES',header=None)
