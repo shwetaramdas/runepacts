@@ -698,7 +698,7 @@ while line_num < int(lines_in_file):
 
 	for TEST in TESTS:
 		#Check if test includes an emmax test. Then check if kinship file has been provided. If not, then make one.
-		if ('emmax' in TEST.split('=')[1]) or ('mmskat' in TEST.split('=')[1]):
+		if ('emmax' in TEST.split('=')[1]) or ('mmskat' in TEST.split('=')[1]) or ('q.emmax' in options['SINGLEMARKERTEST']):
 			if 'KINSHIPFILE' in options.keys():
 				if not os.path.exists(defaults['INPUTDIR'] + '/' + defaults['KINSHIPFILE']):
 					print("Kinship file specified does not exist")
@@ -810,7 +810,7 @@ while line_num < int(lines_in_file):
 			del macs[macs.columns[1]]
 
 			#For all genes (not only the significant ones), get the minor allele count for that gene. Filter by GENEMINMAC and MINVARS, output to genespassingfilters
-			LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + "Filtering genes by MINMAC/MINVARS" + "\n" )
+			LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + "Filtering genes by MINMAC/MINVARS" + "\n")
 			for gene in allgenes:
 				mac_gene = 0
 				genename = re.sub(".*_", "", gene)
@@ -822,7 +822,7 @@ while line_num < int(lines_in_file):
 					varnums = numvars[numvars['MARKER_ID'] == gene]
 					if (len(varnums) > 0) and (varnums['PASS_MARKERS'].loc[varnums.index[0]] >= int(MINVARS)):
 						genespassingfilters[gene] = re.sub(".*_", "", gene)
-		
+
 			genespassingfilters = pandas.DataFrame(genespassingfilters.keys())
 			genespassingfilters['GENENAME'] = genespassingfilters[genespassingfilters.columns[0]].replace(r".*_","")
 			genespassingfilters.to_csv(options['OUTPREFIX'] + ".genespassingfilters.txt",index=False,index_label=False,sep="\t")
@@ -870,7 +870,7 @@ while line_num < int(lines_in_file):
 		
 		#run epacts for single markers to get single marker p values
 		print("Running Single Marker EPACTS test...")
-		epactscommand = epacts + ' single --vcf ' + options['OUTPREFIX'] + '.singlemarkers.vcf.gz -ped ' + options['OUTPREFIX'] + '.pheno.ped ' + '-pheno ' + phenotype + ' ' + covariatecommand + ' -test ' + defaults['SINGLEMARKERTEST']+ ' -out ' + options['OUTPREFIX'] + '.singlemarker --run 1 > /dev/null'
+		epactscommand = epacts + ' single --vcf ' + options['OUTPREFIX'] + '.singlemarkers.vcf.gz -ped ' + options['OUTPREFIX'] + '.pheno.ped ' + '-pheno ' + phenotype + ' ' + covariatecommand + ' -test ' + defaults['SINGLEMARKERTEST']+ ' ' + kinshipcommand + ' -out ' + options['OUTPREFIX'] + '.singlemarker --run 1 > /dev/null'
 		print(epactscommand)
 		LOGFILE.write(str(time.asctime(time.localtime(time.time()))) + "\t" + epactscommand + "\n")
 		os.system(epactscommand)
