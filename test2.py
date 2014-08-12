@@ -27,65 +27,78 @@ import time
 import matplotlib
 import pylab
 import random
+from collections import deque, Counter
 
 #FUNCTIONS
+
+def get_vcf_header(vcf):
+	if vcf.endswith(".gz"):
+		f = gzip.open(vcf);
+	else:
+		f = open(vcf);
+		
+	header = None;
+	with f:
+		for line in f:
+			if line.startswith("#CHROM"):
+				header = line.rstrip().split("\t");
+				break;
+				
+	return header;
+
 def calculatemaf(inputvcf,outprefix,samplestokeep,sepchr=False):
-	#get the header from the vcf and figure out sample columns to keep
-	sampleline = subprocess.Popen('zcat '+ inputvcf +' | grep CHROM', shell=True,stdout=subprocess.PIPE)
-	sampleline = sampleline.communicate()[0].rstrip().split()
-	colstokeep = "1,2"
+	print(inputvcf)
+	header = get_vcf_header(inputvcf);
+		#get the header from the vcf and figure out sample columns to keep
+
+	colstokeep = []
 	samplestokeeplist = list(samplestokeep)
-	for columnnum in range(10,len(sampleline)):
-		if sampleline[columnnum] in samplestokeeplist:
-			colstokeep = colstokeep + ',' + str(columnnum)
-	command = 'zcat ' + inputvcf + ' | grep -v "#" | cut -f ' + colstokeep + "| sed 's/:" + '[^\\t]*//g' + "' | sed '" + 's/0\/0/0/g' + "' | sed 's/0\/1/1/g' | sed 's/1\/1/2/g' | sed 's/\.\/\./-1/g' | sed 's/0\/./1/g' | sed 's/.\/./2/g' > " + inputvcf.replace('.gz','') + '_GENOTYPES'
-	print(command)
-	os.system(command)
-	genotypefile = pandas.read_table(inputvcf.replace('.gz','') + '_GENOTYPES',header=None)
-	#remove first two columns chr and position
-	genotypefile = genotypefile.set_index(genotypefile[genotypefile.columns[0]].map(str) + "\t" + genotypefile[genotypefile.columns[1]].map(str))
-	del genotypefile[genotypefile.columns[0]]
-	del genotypefile[genotypefile.columns[0]]
-	print("getting genotype frequencies")
-	frq1 = []
-	frq2 = []
-	nalleles = []
-	n_chr = []
-	counts1 = []
-	counts2 = []
-	for index,row in genotypefile.iterrows():
-		counts = row.value_counts()
-		n0 = 0
-		n1 = 0
-		n2 = 0
-		if 0 in counts.index:
-			n0 = counts.loc[0]
-		if 1 in counts.index:
-			n1 = counts.loc[1]
-		if 2 in counts.index:
-			n2 = counts.loc[2]
-		if (n0 + n1 + n2) > 0:
-			frq2.append((0.5*n1+n2)/(n0+n1+n2))
-			frq1.append((0.5*n1+n0)/(n0+n1+n2))
-			counts1.append(2*n0 + n1)
-			counts2.append(2*n2 + n1)
-		else:
-			frq2.append(None)
-			frq1.append(None)
-			counts1.append(None)
-			counts2.append(None)
-		nalleles.append(2)
-		n_chr.append(n0+n1+n2)
-	genotypefile['N_ALLELES'] = nalleles
-	genotypefile['N_CHR'] = n_chr
-	genotypefile['FREQ1'] = frq1
-	genotypefile['FREQ2'] = frq2
-	colnames = genotypefile.columns
-	for i in range(0,(len(colnames) - 4)):
-		del genotypefile[colnames[i]]
-	genotypefile.to_csv(outprefix + '.frq',sep="\t",index=True,quotechar='')
-	os.system("cat " + outprefix + '.frq | sed \'s/"//g\' > ' + outprefix + 'TEMP')
-	os.system('mv ' + outprefix + 'TEMP ' + outprefix + '.frq')
+	for columnnum in range(10,len(header)):
+		if header[columnnum] in samplestokeeplist:
+			colstokeep.append(columnnum)	
+	if inputvcf.endswith(".gz"):
+		f = gzip.open(inputvcf);
+	else:
+		f = open(inputvcf);
+
+	rows = []
+	n_alleles = 2
+	for line in f:
+		if line.startswith("#"):
+			continue;
+
+		# Split the line on tabs (VCF must be tab-delimited)
+		ls = line.split("\t");
+		ls[-1] = ls[-1].rstrip();
+
+		# Find which element of the genotype field is the genotype itself		
+		gt_ind = ls[8].split(":").index("GT");
+		
+		# Grab genotypes for only those samples we care about.
+		# gt_ind is the index within the genotype field for the genotype itself
+		# Remember sometimes that field can contain dosage, genotype likelihoods, etc.
+		# Example: GT:EC:DS 0/0:1.3314141:8
+		genos = [ls[i].split(":")[gt_ind] for i in colstokeep];
+
+		# Count alleles per genotype.
+		count = Counter();
+		map(count.update,genos);
+		n_chr = count['0'] + count['1'];
+		freq_0 = count['0'] / float(n_chr);
+		freq_1 = count['1'] / float(n_chr);
+		mac = min(count['0'],count['1']);
+		maf = min(freq_0,freq_1);
+
+		# Store information on this variant
+		chr, pos, id, ref, alt = ls[0:5];
+
+		rows.append([chr,pos,id,ref,alt,n_alleles,n_chr,freq_0,freq_1,mac,maf]);
+		
+	df = pandas.DataFrame(
+		rows, columns = ["CHROM","POS","ID","REF","ALT","N_ALLELES","N_CHR","FREQ0","FREQ1","MAC","MAF"]
+	);
+	return df
+	
 	LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + "Variant Frequency file created" + "\n")
 
 #this function just performs a filter on a column (or multiple columns) of a file by reading it in as a numpy table.
@@ -194,16 +207,13 @@ def create_group_file(outfilename, vcffilename, annofile, maffilterfile, maffilt
 		tofilter = True
 		print("filtering by MAF")
 		LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t filtering by MAF\n")
-		if 'SEPCHR' not in options:
-#			command = 'vcftools --gzvcf ' + options['INPUTDIR'] + "/" + options['VCFFILE'] + ' --keep '+ options['OUTPREFIX'] + '.samplestokeep.txt ' + '--freq2 --out ' + options['OUTPREFIX'] + '> /dev/null'
-#			os.system(command)
-#			LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + command + "\n")
-			command = 'zcat ' + options['INPUTDIR'] + "/" + options['VCFFILE'] + ' | grep -v "^##" | cut -f 1,2,3 > ' + options['OUTPREFIX'] + '.variantids.txt'
-			os.system(command)
-			calculatemaf(vcffilename, options['OUTPREFIX'],samplestokeep)	# this creates an MAF file
+		if 'SEPCHR' not in options.keys():
+			maffile = calculatemaf(vcffilename, options['OUTPREFIX'],samplestokeep)	# this creates an MAF file
 			
 		else:
+			print("sepchr")
 			vcffilenametomatch = options['VCFFILE'].split('chr1')
+			matched = 1
 			for f in os.listdir(options['INPUTDIR']):
 				match = True
 				for f2 in vcffilenametomatch:
@@ -211,22 +221,26 @@ def create_group_file(outfilename, vcffilename, annofile, maffilterfile, maffilt
 						match = False
 						break
 				if match:
-					calculatemaf(options['INPUTDIR'] + '/' + f, options['OUTPREFIX'],samplestokeep)	# this creates an MAF file
-					command = 'zcat ' + options['INPUTDIR'] + "/" + f + ' | grep -v "^##" | cut -f 1,2,3 >> ' + options['OUTPREFIX'] + '.variantids.txt'
-					os.system(command)
+					if matched == 1:
+						maffile = calculatemaf(options['INPUTDIR'] + '/' + f, options['OUTPREFIX'],samplestokeep)	# this creates an MAF file
+					else:
+						maffile = maffile.append(calculatemaf(options['INPUTDIR'] + '/' + f, options['OUTPREFIX'],samplestokeep))
+					matched = matched + 1
 
-		maffile = pandas.read_table(options['OUTPREFIX'] + ".frq",skiprows=1,header=None)
-		allidsfile = pandas.read_table(options['OUTPREFIX'] + '.variantids.txt',header=0)
-		r1 = set(maffile.index[maffile[maffile.columns[5]] < float(maffilter)])
-		r2 = set(maffile.index[maffile[maffile.columns[5]] > (1 - float(maffilter))])
+		allidsfile = maffile[['CHROM', 'POS','ID']]
+		print(maffile)
+		r1 = set(maffile.index[maffile[maffile.columns[10]] < float(maffilter)])
+		r2 = set(maffile.index[maffile[maffile.columns[10]] > (1 - float(maffilter))])
 		rowstokeep = r1.union(r2)
-		r3 = set(maffile.index[maffile[maffile.columns[5]] > 0])
+		r3 = set(maffile.index[maffile[maffile.columns[10]] > float(0)])
 		rowstokeep = rowstokeep.intersection(r3)
-		r4 = set(maffile.index[maffile[maffile.columns[5]] < 1])
+		r4 = set(maffile.index[maffile[maffile.columns[10]] < float(1)])
 		rowstokeep = rowstokeep.intersection(r4)
 		maffile = maffile.iloc[list(rowstokeep)]
+		print(maffile)
 		passsnps = pandas.merge(maffile, allidsfile,left_on = [maffile.columns[0], maffile.columns[1]], right_on = [allidsfile.columns[0], allidsfile.columns[1]],how='inner')
-		passsnps = list(passsnps['ID'])
+		passsnps = list(passsnps['ID_x'])
+		print(passsnps)
 		
 	#make a bed file containing only the positions you need
 	genes = []
@@ -239,6 +253,7 @@ def create_group_file(outfilename, vcffilename, annofile, maffilterfile, maffilt
 		filename = gzip.open(annofile,'rb')
 	else:
 		filename = open(annofile)
+		
 	#read in annotation file and store the gene and snp in 2 arrays
 	line = filename.readline()
 	for line in filename:
@@ -275,7 +290,7 @@ def create_group_file(outfilename, vcffilename, annofile, maffilterfile, maffilt
 	#now sort geneinfo by gene names
 	if genes.size > 0:
 		geneinfo = geneinfo[geneinfo[:,0].argsort()]
-
+	print(geneinfo)
 	variants = dict() #storing the gene annotation as it should be written to the output file
 	i = 0
 	#go through each row of geneinfo, and if successive rows have the same gene, concatenate the snps together in the variants dictionary using the gene name as key
@@ -384,7 +399,7 @@ defaults['MINMAC'] = 0
 defaults['ANNOTGENECOL'] = 4
 defaults['ANNOTVARCOL'] = 0
 defaults['ANNOTPOSCOL'] = 1
-
+defaults['VCFDIR'] = None
 ##open log file to write to
 logfilename = "runepacts_" +  time.asctime(time.localtime(time.time())).replace(" ","_") + ".log"
 LOGFILE = open(logfilename, "w")
@@ -429,6 +444,12 @@ while line_num < int(lines_in_file):
 	#set the defaults as the input options
 	if 'VCFFILE' in options:
 		defaults['VCFFILE'] = options['VCFFILE']
+	if '/' in 'VCFFILE':
+		vcfdir = vcffile.split('/')
+		defaults['VCFDIR'] = "/".join(vcfdir[0:(len(vcfdir)-1)])
+		vcffilename = options['VCFFILE']
+	else:
+		vcffilename = options['INPUTDIR'] + options['VCFFILE']
 	if 'PEDFILE' in options:
 		defaults['PEDFILE'] = options['PEDFILE']
 	if 'MODEL' in options:
@@ -552,7 +573,7 @@ while line_num < int(lines_in_file):
 	if not os.path.exists(defaults['INPUTDIR'] + '/' + options['VCFFILE'] + '.tbi'):
 		print("Indexing vcf. Warning: This may take longer for large VCFs\n")
 		LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + "Indexing vcf\n")
-		tabix_command = 'tabix -pvcf -f ' + defaults['INPUTDIR'] + '/' + options['VCFFILE'] + " > /dev/null"
+		tabix_command = 'tabix -pvcf -f ' + vcffilename + " > /dev/null"
 		os.system(tabix_command)
 		LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + tabix_command + "\n")
 
@@ -738,6 +759,8 @@ while line_num < int(lines_in_file):
 
 	for TEST in TESTS:
 		outputtest = pandas.read_table(options['OUTPREFIX'] + '.' + TEST.split('=')[1] + '.epacts',sep="\t",header=0)	#reading in output file for test
+		if 'NUM_PASS_VARS' in outputtest.columns:
+			outputtest.rename(columns={'NUM_PASS_VARS':'PASS_MARKERS'}, inplace=True)
 		if 'BEGIN' not in outputtest.columns:
 			outputtest.rename(columns={'BEG':'BEGIN'}, inplace=True)
 		
@@ -746,15 +769,21 @@ while line_num < int(lines_in_file):
 			output = outputtest
 		else:
 			output = output.append(outputtest)
-	
+		print(output)
+	print("HERE!!")
+	print(output)
 	#the output dataframe contains concatenated results from all EPACTS tests run
 	output = output.sort(columns=[output.columns[0], 'BEGIN'],inplace=False)
-	allgenes = output['MARKER_ID']
 	allgenesoutput = output
 	output = output[output.PVALUE <= float(PVALUETHRESHOLD)]
+	allgenes = output['MARKER_ID'].drop_duplicates()
+	
 	numvars = output[['MARKER_ID','PASS_MARKERS']]
 	numvars = numvars.drop_duplicates()
+
 	
+
+	print(numvars)
 	#if output is empty, then ??
 	if len(output) == 0:
 		print("Epacts groupwise test returned no significant results")
@@ -769,7 +798,6 @@ while line_num < int(lines_in_file):
 		#get the variants in each gene if test if not VT
 		genes = output['MARKER_ID']
 		genes = genes.drop_duplicates()
-		print(finalgroupfilename)
 		groupfile = open(finalgroupfilename)
 		markerlistforgenes = dict()
 		print("Reading groupfile\n")
@@ -788,15 +816,6 @@ while line_num < int(lines_in_file):
 		#use VCFtools to get the mac for each variant from the vcffile
 
 		if 'GENEMINMAC' in options:
-#			maccommand = 'vcftools --gzvcf ' + options['INPUTDIR'] + '/' + defaults['VCFFILE'] + ' --keep ' + options['OUTPREFIX'] + ".samplestokeep.txt"  + ' --counts --out ' + options['OUTPREFIX'] + '.allelecounts.temp'
-#			os.system(maccommand)
-#			LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + maccommand + "\n" )
-#			maccommand = 'cat ' + options['OUTPREFIX'] + ".allelecounts.temp.frq.count | sed 's/[A|T|G|C]://g' > " + options['OUTPREFIX'] + '.variantcounts.txt'
-#			os.system(maccommand)
-#			maccommand = 'rm ' + options['OUTPREFIX'] + '.allelecounts.temp.frq.count > /dev/null'
-#			os.system(maccommand)
-#			maccommand = 'cat ' + options['OUTPREFIX'] + ".variantcounts.txt | sed 's/[A|T|G|C]://g'| awk '{min=$5;if($6 < $5){min = $6};print $1\"\t\"$2\"\t\"min}' > " + options['OUTPREFIX'] + '.maccounts.txt'
-#			os.system(maccommand)
 			if os.path.isfile(options['OUTPREFIX'] + '.frq'):
 				command = 'cat ' + options['OUTPREFIX'] + '.frq | ' + "awk '{print $1\"\\t\"$2\"\\t\"$4*$5\"\\t\"$4*$6}' | awk '{min=$3;if($4 < min){min=$4;};print $1\"\\t\"$2\"\\t\"min}' > " + options['OUTPREFIX'] + '.maccounts.txt'
 				os.system(command)
@@ -808,10 +827,11 @@ while line_num < int(lines_in_file):
 			macs['MARKER'] = macs[macs.columns[0]].map(str) + ':'  + macs[macs.columns[1]].map(str)
 			del macs[macs.columns[0]]
 			del macs[macs.columns[1]]
-
+			print(macs)
 			#For all genes (not only the significant ones), get the minor allele count for that gene. Filter by GENEMINMAC and MINVARS, output to genespassingfilters
 			LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + "Filtering genes by MINMAC/MINVARS" + "\n")
 			for gene in allgenes:
+				print(gene)
 				mac_gene = 0
 				genename = re.sub(".*_", "", gene)
 				for ms in markerlistforgenes[genename]:
@@ -820,7 +840,13 @@ while line_num < int(lines_in_file):
 					mac_gene = mac_gene + int(macstoadd)
 				if mac_gene > int(GENEMINMAC):
 					varnums = numvars[numvars['MARKER_ID'] == gene]
-					if (len(varnums) > 0) and (varnums['PASS_MARKERS'].loc[varnums.index[0]] >= int(MINVARS)):
+					print(varnums)
+					nvars = 0
+					if len(varnums) > 1:
+						nvars = max(varnums['PASS_MARKERS'])
+					if len(varnums) == 1:
+						nvars = varnums['PASS_MARKERS']
+					if (len(varnums) > 0) and (nvars >= int(MINVARS)):
 						genespassingfilters[gene] = re.sub(".*_", "", gene)
 
 			genespassingfilters = pandas.DataFrame(genespassingfilters.keys())
