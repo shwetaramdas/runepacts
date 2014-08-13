@@ -887,7 +887,12 @@ while line_num < int(lines_in_file):
 			for marker in markers:
 				markerchr = marker.split('_')[0].split(':')[0]
 				markerposition = marker.split('_')[0].split(':')[1]
-				tabixcommand = 'tabix ' + vcffilename + ' ' + markerchr + ':' + markerposition + '-' + markerposition + ' >> ' + options['OUTPREFIX'] + '.singlemarkers.vcf'
+				if sepchr not in options:
+					tabixcommand = 'tabix ' + vcffilename + ' ' + markerchr + ':' + markerposition + '-' + markerposition + ' >> ' + options['OUTPREFIX'] + '.singlemarkers.vcf'
+				else:
+					vcffilenametomatch = options['VCFFILE'].split('chr1')
+					vcffiletolookfor = options['VCFFILE'].replace('chr1', 'chr'+str(markerchr))
+					tabixcommand = 'tabix ' + os.path.join(options['VCFDIR'],vcffiletolookfor) + ' ' + markerchr + ':' + markerposition + '-' + markerposition + ' >> ' + options['OUTPREFIX'] + '.singlemarkers.vcf'
 				os.system(tabixcommand)
 				LOGFILE.write(str(time.asctime(time.localtime(time.time()))) + "\t" + tabixcommand + "\n")
 		
