@@ -133,7 +133,7 @@ def calculatemaf(inputvcf,outprefix,samplestokeep,sepchr=False):
 	df = pandas.DataFrame(
 		rows, columns=["CHROM","POS","ID","REF","ALT","N_ALLELES","N_CHR","FREQ0","FREQ1","MAC","MAF"]
 	);
-	df.to_csv("maffile.txt",sep="\t",index=False,index_label=False)
+	df.to_csv(outprefix + ".maffile.txt",sep="\t",index=False,index_label=False)
 #	LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + "Variant Frequency file created" + "\n")
 	return df
 	
@@ -228,7 +228,7 @@ def evalexpression(exprs, filetofilter):
 			return evalexpression(exprs[firstopen+1:index],pedfile)
 
 #this function creates the required group file for epacts
-def create_group_file(outprefix, vcffilename, annofile, maffilterfile, maffilter, DELIM_MAF, DELIM_ANNO, samplestokeep,annotvarcol=0, annotgenecol=4, annotposcol= 1):
+def create_group_file(outprefix, vcffilename, annofile, maffilterfile, maffilter, DELIM_MAF, DELIM_ANNO, samplestokeep,annotvarcol=0, annotgenecol=4, annotposcol= 1, sepchr=''):
 	vcfname = vcffilename
 	vcfdir = vcffilename.split('/')
 	vcfdir = '/'.join(vcffilename.split('/')[0:(len(vcfdir)-1)])
@@ -263,7 +263,7 @@ def create_group_file(outprefix, vcffilename, annofile, maffilterfile, maffilter
 		tofilter = True
 		print("filtering by MAF")
 		LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t filtering by MAF\n")
-		if 'SEPCHR' not in options.keys():
+		if 'sepchr' not in sepchr:
 			maffile = calculatemaf(vcffilename, outprefix,samplestokeep)	# this creates an MAF file
 			
 		else:
@@ -442,6 +442,7 @@ while line_num < int(lines_in_file):
 	while len(line) < 3:
 		line = configfile.readline()
 		line_num = line_num + 1
+
 	TESTS = []
 	#keep reading in lines, and storing the parameters till you hit a 'PROCESS'
 	while line[0:7] != "PROCESS":
@@ -459,14 +460,12 @@ while line_num < int(lines_in_file):
 		line_num = line_num + 1
 	
 	#Now, line has 'PROCESS'
-	print("Running test "+ str(numtests + 1))
-	LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + "Running test " + str(numtests) + "\n")
+	print("Running process "+ str(numtests + 1))
+	LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + "Running process " + str(numtests) + "\n")
 	numtests = numtests + 1
-	
-	#TO COMPLETE LATER: CHECK IF ALL THE REQUIRED OPTIONS FOR THIS TEST ARE DEFINED, and the ones which are defined are valid
-#	check_file_exists(options['INPUTDIR']+'/'+options['VCFFILE'])
-#	check_file_exists(options['INPUTDIR']+'/'+options['PEDFILE'])
-#	check_file_exists(options['INPUTDIR']+'/'+options['ANNOTFILE'])
+	if len(TESTS) == 0:
+		print("Error: Must specify test.")
+		sys.exit()
 
 	#if folder to write files in does not exist, make it
 	if not os.path.isdir(re.sub('/.*', '', options['OUTPREFIX'])):
@@ -525,8 +524,6 @@ while line_num < int(lines_in_file):
 		defaults['MARKERMINMAF'] = float(options['MARKERMINMAF'])
 	if 'MARKERMINMAC' in options.keys():
 		defaults['MARKERMINMAC'] = int(options['MARKERMINMAC'])
-	
-	
 	
 	#now you have all the options for the test
 	#this block sets the default options (which change if specified by the user)
@@ -632,7 +629,22 @@ while line_num < int(lines_in_file):
 		tabix_command = 'tabix -pvcf -f ' + vcffilename + " > /dev/null"
 		os.system(tabix_command)
 		LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + tabix_command + "\n")
-
+	
+	#if sepchr is on, then tabix all other chromosomes too
+	if ('SEPCHR' in options) and (options['SEPCHR'] == 'ON'):
+		vcffilenametomatch = vcffilename.split('/')[len(vcffilename.split('/'))-1].split('chr1')
+		for f in os.listdir(options['VCFDIR']):
+			if '.gz.tbi' in f:
+				continue
+			match = True
+			for f2 in vcffilenametomatch:
+				if f2 not in f:
+					match = False
+					break
+			if match:
+				tabix_command = 'tabix -pvcf -f ' + os.path.join(options['VCFDIR'],f) + " > /dev/null"
+				os.system(tabix_command)
+	
 	#Then, make a ped file after using the filters provided
 	print "Creating ped file...\n"
 	LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + "Creating ped file...\n")
@@ -747,22 +759,20 @@ while line_num < int(lines_in_file):
 				annorowstokeep = evalexpression(filter, annofile)
 				annofile = annofile.iloc[list(annorowstokeep),:]
 				annofile.to_csv(os.path.join(defaults['INPUTDIR'], options['ANNOTFILE'].replace('.gz', '') + '.filtered.txt'),sep="\t", index=False)
-				print("still filtering...\n")
+
 				if 'MAFFILE' not in options.keys():
-					maffile = create_group_file(options['OUTPREFIX'], vcffilename, defaults['INPUTDIR'] + '/' + options['ANNOTFILE'].replace('.gz', '') + '.filtered.txt', 'NA', defaults['FILTERMAF'], DELIM_MAF, DELIM_ANNO,samplestokeep,defaults['ANNOTVARCOL'],defaults['ANNOTGENECOL'],defaults['ANNOTPOSCOL'])
+					maffile = create_group_file(options['OUTPREFIX'], vcffilename, defaults['INPUTDIR'] + '/' + options['ANNOTFILE'].replace('.gz', '') + '.filtered.txt', 'NA', defaults['FILTERMAF'], DELIM_MAF, DELIM_ANNO,samplestokeep,defaults['ANNOTVARCOL'],defaults['ANNOTGENECOL'],defaults['ANNOTPOSCOL'],sepchr)
 				else:
 					maffile = create_group_file(options['OUTPREFIX'], vcffilename, os.path.join(defaults['INPUTDIR'],options['ANNOTFILE'].replace('.gz', '') + '.filtered.txt'), \
-								os.path.join(defaults['INPUTDIR'],options['MAFFILE']) , defaults['FILTERMAF'], DELIM_MAF, DELIM_ANNO,samplestokeep,defaults['ANNOTVARCOL'],defaults['ANNOTGENECOL'],defaults['ANNOTPOSCOL'])
+								os.path.join(defaults['INPUTDIR'],options['MAFFILE']) , defaults['FILTERMAF'], DELIM_MAF, DELIM_ANNO,samplestokeep,defaults['ANNOTVARCOL'],defaults['ANNOTGENECOL'],defaults['ANNOTPOSCOL'], sepchr)
 
 			else:
 				if 'MAFFILE' not in options.keys():
 					maffile = create_group_file(options['OUTPREFIX'], vcffilename, \
-								os.path.join(defaults['INPUTDIR'], defaults['ANNOTFILE']), 'NA', defaults['FILTERMAF'], DELIM_MAF, DELIM_ANNO,samplestokeep,defaults['ANNOTVARCOL'],defaults['ANNOTGENECOL'],defaults['ANNOTPOSCOL'])
+								os.path.join(defaults['INPUTDIR'], defaults['ANNOTFILE']), 'NA', defaults['FILTERMAF'], DELIM_MAF, DELIM_ANNO,samplestokeep,defaults['ANNOTVARCOL'],defaults['ANNOTGENECOL'],defaults['ANNOTPOSCOL'],sepchr)
 				else:
 					maffile = create_group_file(options['OUTPREFIX'], vcffilename, os.path.join(defaults['INPUTDIR'], defaults['ANNOTFILE']), \
-								os.path.join(defaults['INPUTDIR'],defaults['MAFFILE']), defaults['FILTERMAF'], DELIM_MAF, DELIM_ANNO,samplestokeep,defaults['ANNOTVARCOL'],defaults['ANNOTGENECOL'],defaults['ANNOTPOSCOL'])
-				print(maffile)
-				print("MAFFILE obtained")
+								os.path.join(defaults['INPUTDIR'],defaults['MAFFILE']), defaults['FILTERMAF'], DELIM_MAF, DELIM_ANNO,samplestokeep,defaults['ANNOTVARCOL'],defaults['ANNOTGENECOL'],defaults['ANNOTPOSCOL'],sepchr)
 
 			finalgroupfilename = options['OUTPREFIX'] + '_groups.txt'
 	else:
@@ -791,7 +801,7 @@ while line_num < int(lines_in_file):
 				makekinshipcommand = epacts + ' make-kin '  + ' -vcf ' + vcffilename \
 										+ ' -ped ' + options['OUTPREFIX'] + '.pheno.ped ' + ' -out ' + options['OUTPREFIX'] \
 										+ '.kinf' \
-										+ ' -min-maf 0.01 -min-callrate 0.95' + ' -run 1'
+										+ ' -min-maf 0.01 -min-callrate 0.95' + ' -run 1 > /dev/null'
 				#print makekinshipcommand
 				os.system(makekinshipcommand)
 				LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + makekinshipcommand + "\n")
@@ -802,7 +812,7 @@ while line_num < int(lines_in_file):
 										+ vcffilename + ' -pheno ' + phenotype + ' -ped ' \
 										+ options['OUTPREFIX'] + '.pheno.ped ' + ' -groupf ' \
 										+ finalgroupfilename + ' -out ' + options['OUTPREFIX'] + '.' + TEST.split('=')[1] \
-										+ minmaf + ' ' + minmac + ' ' + covariatecommand + usercommand + sepchr + kinshipcommand + ' -run 1'
+										+ minmaf + ' ' + minmac + ' ' + covariatecommand + usercommand + sepchr + kinshipcommand + ' -run 1  >/dev/null'
 
 		if ('RUNEPACTS' in options.keys()) and (options['RUNEPACTS'] == 'FALSE'):
 			print epacts_command
@@ -828,8 +838,7 @@ while line_num < int(lines_in_file):
 			output = outputtest
 		else:
 			output = output.append(outputtest)
-		print(output)
-	print(output)
+	
 	#the output dataframe contains concatenated results from all EPACTS tests run
 	output = output.sort(columns=[output.columns[0], 'BEGIN'],inplace=False)
 	allgenesoutput = output
@@ -872,21 +881,29 @@ while line_num < int(lines_in_file):
 
 		#use VCFtools to get the mac for each variant from the vcffile
 
-		
 		if 'GENEMINMAC' in options:
 			if 'maffile' not in globals():
 				if 'maffile' not in locals():
-					print("calculating maf")
-					maffile = calculatemaf(vcffilename, options['OUTPREFIX'], samplestokeep)
-					print(maffile)
-					print("here")
-					
+					maffile = pandas.DataFrame()
+					if ('SEPCHR' in options ) and (options['SEPCHR'] == 'ON'):
+						vcffilenametomatch = vcffilename.split('/')[len(vcffilename.split('/'))-1].split('chr1')
+						for f in os.listdir(options['VCFDIR']):
+							if '.gz.tbi' in f:
+								continue
+							match = True
+							for f2 in vcffilenametomatch:
+								if f2 not in f:
+									match = False
+									break
+							if match:						
+								maffile = maffile.append(calculatemaf(os.path.join(options['VCFDIR'],f), options['OUTPREFIX'], samplestokeep))
+					else:
+						maffile = calculatemaf(vcffilename, options['OUTPREFIX'], samplestokeep)
 			maffile['MARKER'] = maffile[maffile.columns[0]].map(str) + ':'  + maffile[maffile.columns[1]].map(str)
-			print(maffile)
+			
 			#For all genes (not only the significant ones), get the minor allele count for that gene. Filter by GENEMINMAC and MINVARS, output to genespassingfilters
 			LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + "Filtering genes by MINMAC/MINVARS" + "\n")
 			for gene in allgenes_includingnonsignificant:
-				print(gene)
 				mac_gene = 0
 				genename = re.sub(".*_", "", gene)
 				for ms in markerlistforgenes[genename]:
@@ -894,9 +911,9 @@ while line_num < int(lines_in_file):
 					macstoadd = macstoadd[macstoadd.columns[9]]
 					macstoadd = int(macstoadd.iloc[0])
 					mac_gene = mac_gene + int(macstoadd)
+
 				if mac_gene > int(GENEMINMAC):
 					varnums = numvars[numvars['MARKER_ID'] == gene]
-					#print(varnums)
 					nvars = 0
 					if len(varnums) > 1:
 						nvars = max(varnums['PASS_MARKERS'])
@@ -908,6 +925,7 @@ while line_num < int(lines_in_file):
 			genespassingfilters = pandas.DataFrame(genespassingfilters.keys())
 			genespassingfilters['GENENAME'] = genespassingfilters[genespassingfilters.columns[0]].replace(r".*_","")
 			genespassingfilters.to_csv(options['OUTPREFIX'] + ".genespassingfilters.txt",index=False,index_label=False,sep="\t")
+
 		elif 'MINVARS' in options:
 			for gene in allgenes_includingnonsignificant:
 				genename = re.sub(".*_", "", gene)
@@ -916,6 +934,7 @@ while line_num < int(lines_in_file):
 			genespassingfilters = pandas.DataFrame(genespassingfilters.keys())
 			genespassingfilters['GENENAME'] = genespassingfilters[genespassingfilters.columns[0]].replace(r".*_","")
 			genespassingfilters.to_csv(options['OUTPREFIX'] + ".genespassingfilters.txt",index=False,index_label=False,sep="\t")			
+
 		else:
 			genespassingfilters = pandas.DataFrame(allgenes)
 			genespassingfilters['GENENAME'] = genespassingfilters[genespassingfilters.columns[0]].replace(r".*_","")
@@ -959,7 +978,7 @@ while line_num < int(lines_in_file):
 		epactscommand = epacts + ' single --vcf ' + options['OUTPREFIX'] + '.singlemarkers.vcf.gz -ped ' + options['OUTPREFIX'] + '.pheno.ped ' + '-pheno ' + phenotype + ' ' + covariatecommand + ' -test ' + defaults['SINGLEMARKERTEST']+ ' ' + kinshipcommand + markerminmaf + ' ' + markermaxmaf + ' ' + markerminmac +  ' -out ' + options['OUTPREFIX'] + '.singlemarker --run 1 > /dev/null'
 		print(epactscommand)
 		LOGFILE.write(str(time.asctime(time.localtime(time.time()))) + "\t" + epactscommand + "\n")
-#		os.system(epactscommand)
+		os.system(epactscommand)
 		
 		#read annot file if it exists
 		annotations = dict()
