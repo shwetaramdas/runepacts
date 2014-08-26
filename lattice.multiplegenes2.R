@@ -11,7 +11,7 @@ qqunif.plot<-function(pvalues,
 	draw.conf=TRUE, conf.points=1000, conf.col="lightgray", conf.alpha=.05,
 	already.transformed=FALSE, pch=20, aspect="iso", 
 	par.settings=list(superpose.symbol=list(pch=pch)), ...) {
- 
+
 	#error checking
 	if (length(pvalues)==0) stop("pvalue vector is empty, can't draw plot")
 	if(!(class(pvalues)=="numeric" || 
@@ -74,7 +74,7 @@ qqunif.plot<-function(pvalues,
         	}
         	grid.polygon(x=mpts[,1],y=mpts[,2], gp=gpar(fill=conf.col, lty=0), default.units="native")
     	}
- 
+
 	#reduce number of points to plot
 	if (should.thin==T) {
 		if (!is.null(grp)) {
@@ -326,7 +326,7 @@ addspaces <- function(string, maxstring){
 #START MAIN
 #get arguments from input
 arguments = commandArgs(trailingOnly=TRUE)
-variants = read.table(arguments[1], header=T,stringsAsFactors=FALSE)
+variants = read.table(arguments[1], header=T,stringsAsFactors=FALSE,sep="\t")
 variants$PVALUE = as.numeric(variants$PVALUE)
 phenotype = arguments[2]
 
@@ -361,7 +361,6 @@ if(covariates != 'NA'){
 
 merged = merge(allvariants, phenos, by.x = 'IND', by.y = 'IND_ID')
 
-
 #number of columns to add to the pdf on the right.
 columnstoannotate = allvariants
 columnstoannotate$GROUP = NULL
@@ -376,6 +375,7 @@ columnstoannotate$PVALUE = NULL
 
 #after deleting these columns, whatever is left in columnstoannotate has to be added to the info on the right. We have to compute how many such columns there are, and how much space it is likely to take up
 extralengthtoadd = 0
+extracolumns = NULL
 if(ncol(columnstoannotate) > 0){
 	extracolumns = colnames(columnstoannotate);
 	lengthextracolumns = NA
@@ -413,16 +413,15 @@ for(i in 1:length(tests[[1]])){
 		epacts[tests[[1]][i]] = epacts1['PVALUE']
 	}
 }
-
 merged = merge(merged, epacts, by.x = 'GROUP', by.y = 'MARKER_ID')
 merged$'MAC' = round(merged$'MAC',1)
 #sort by BETA, then by pvalue for the gene, then by pvalue of the individual markers
 if('BETA' %in% colnames(merged)){
-	merged = merged[order(-abs(merged$'BETA'),merged$'PVALUE.y', merged$'PVALUE.x'),];
+	merged = merged[order(merged$'PVALUE.x', -abs(merged$'BETA'),merged$'PVALUE.y'),];
 }
 
 merged$'BETA' = format(round(merged$'BETA',2),nsmall=2)
-merged$'PVALUE.x' = format(round(merged$'PVALUE.x',3),nsmall=3)
+merged$'PVALUE.x' = sprintf("%0.3g",merged$'PVALUE.x')
 
 allgenes = unique(merged[,c('GROUP','PVALUE.x')])
 allgenes = allgenes[which(allgenes[,2] <= pvaluethreshold),]
@@ -434,6 +433,15 @@ genes = genes[order(genes[,2]),]
 genes = genes[which(genes[,2] <= pvaluethreshold),]
 genes = unique(genes[,1])
 totalgenes = length(genes)
+
+genespassingfilters = read.table(paste(prefix,'.genespassingfilters.txt',sep=""),header=T,stringsAsFactors=F)
+filteredresults = merge(merged, genespassingfilters, by.x='GROUP', by.y=1,sort=F)
+genes = filteredresults[,c('GROUP', 'PVALUE.x')]
+genes = genes[order(genes[,2]),]
+genes = genes[which(genes[,2] <= pvaluethreshold),]
+genes = unique(genes[,1])
+totalgenes = length(genes)
+
 
 categorical = 0
 if (length(unique(phenotypes)) == 2){
@@ -495,7 +503,7 @@ if(categorical == 0){				#quantitative phenotype
 		#if(maxchars > as.numeric(maxwidth)){
 		#	cextouse = 0.5;
 		#}
-
+		
 		outer_layout = grid.layout(
 		nrow=nrow(summaryfile)+1,
 		ncol = 1,
@@ -512,7 +520,7 @@ if(categorical == 0){				#quantitative phenotype
 		just = c("left","bottom"),
 		name = "outer"
 		));
-
+		
 		for(i in 1:nrow(summaryfile)){
 			pushViewport(viewport(
 			layout.pos.row = i,
@@ -550,7 +558,7 @@ if(categorical == 0){				#quantitative phenotype
 			upViewport(1);
 			upViewport(1);
 		}
-
+		
 		for(i in 1:length(tests[[1]])){
 			test = tests[[1]][i]
 			#plot qq plot
@@ -598,12 +606,6 @@ if(categorical == 0){				#quantitative phenotype
 			upViewport(1);
 			#update(qq.plot,par.settings = list(fontsize = list(text = 10, points = 8)))
 
-			#par(mfrow = c(1,1))
-			#print(qq.plot)
-
-			#draw unfiltered manhattan plot
-		#	grid.newpage()
-
 			variantstoplot = epactsfortest[,c('X.CHROM', 'BEGIN', 'PVALUE')]
 			if (length(which(variantstoplot[,1] == 'X')) > 0){variantstoplot[which(variantstoplot[,1] == 'X'),1] = '23';}
 			if (length(which(variantstoplot[,1] == 'Y')) > 0){variantstoplot[which(variantstoplot[,1] == 'Y'),1] = '24';}
@@ -613,7 +615,6 @@ if(categorical == 0){				#quantitative phenotype
 			toplot = toplot[order(toplot[,1], toplot[,2]),]
 			temppp = toplot
 			mhtplot = manhattan.plot(toplot[[1]], toplot[[2]], toplot[[3]], sig.level=2e-6,main=paste("Test: ", test, " Unfiltered. ",phenotype, ", No. Samples=",length(phenotypes),", No. Genes=",nrow(toplot),sep=""))
-		#	update(mhtplot,par.settings = list(fontsize = list(text = 15, points = 8)))
 			print(mhtplot)
 			
 			##draw filtered manhattan plot
@@ -629,8 +630,8 @@ if(categorical == 0){				#quantitative phenotype
 
 			print(mhtplot)
 		}
-	
-		while(numgenesplotted < totalgenes){
+
+		while(numgenesplotted < totalgenes){	
 			numgenesplotted = numgenesplotted + numgenestoinclude
 			genes = genes[1:numgenestoinclude]
 			
@@ -656,14 +657,12 @@ if(categorical == 0){				#quantitative phenotype
 				strwidth(longestgenename,units='in',cex=0.6) + 
 				strwidth(paste(rep('a', (extralengthtoadd+20)),collapse=""),units='in',cex=0.6) + 
 				strwidth(paste(rep('a', max(length(longest_beta)+1, nchar('BETA '))),collapse=""),units='in',cex=0.6) + 
-				strwidth(paste(rep('a', max(nchar('4.0e-07'), nchar('VAR.PVAL '))),collapse=""),units='in',cex=0.6) + 
+				strwidth(paste(rep('a', max(nchar('4.0e-07'), nchar('VAR.P '))),collapse=""),units='in',cex=0.6) + 
 				strwidth(paste(rep('a', max(length('4.0e-07')+1, nchar('MAF '))),collapse=""),units='in',cex=0.6) +
 				strwidth(paste(rep('a', max(nchar(longest_mac)+1, length('MAC '))),collapse=""),units='in',cex=0.6) 
 			for(testnum in 1:length(tests[[1]])){
 				widthtouse = widthtouse + strwidth('4.0e-07',units='in',cex=0.6);
 			}
-		#	widthtouse = unit(5, "in")
-		#	widthtouse = as.numeric(convertUnit(widthtouse,'char'))
 
 			# Create our outer layout. This is just 3 columns, where the left column
 			# leaves room for the y-axis label, the middle column is for the histogram
@@ -703,7 +702,7 @@ if(categorical == 0){				#quantitative phenotype
 				)
 			);
 
-				# Create a viewport using the above layout, and positioned within the 
+			# Create a viewport using the above layout, and positioned within the 
 			# 2nd column of the outer viewport.
 			pushViewport(viewport(
 				layout.pos.col = 2,
@@ -717,7 +716,7 @@ if(categorical == 0){				#quantitative phenotype
 				xscale = xscale,
 				name = "header"
 			));
-
+			
 			name = "NAME"
 			name = addspaces(name, longest_variant)
 			betaheader = ''
@@ -732,11 +731,9 @@ if(categorical == 0){				#quantitative phenotype
 				curtest = paste(tests[[1]][testnum],'.P',sep="")
 				curtest = addspaces(curtest, '4.0e-07 ')
 				testheader = paste(testheader, curtest, sep=" ")
-#				longest_test.p = append(longest_test.p, nchar(testheader))
 			}
-#			longest_test.p = longest_test.p[-1]
 			
-			geneheader = paste(geneheader, testheader, name, betaheader, "VAR.PVAL", "MAF  ", macheader, sep=" ")
+			geneheader = paste(geneheader, testheader, name, betaheader, addspaces("VAR.P", '4.0e-07'), "MAF  ", macheader, sep=" ")
 			for(column in extracolumns){
 				geneheader = paste(geneheader, column, sep=" ")
 			}
@@ -761,7 +758,6 @@ if(categorical == 0){				#quantitative phenotype
 					y = unit(c(0,0), 'npc')
 				)
 
-
 			grid.rect()
 			upViewport(1);
 			#now you are back in the inner layout viewport
@@ -779,15 +775,17 @@ if(categorical == 0){				#quantitative phenotype
 					thistestgenepvalue = addspaces(thistestgenepvalue, "4.0e-07 ")
 					genepvalue = paste(genepvalue, thistestgenepvalue,sep=" ")
 				}
-
+				
 				for (i in 1:num_variants){
 					j = j + 1
 					this_variant = markersingene[i];
 					markerrows = rowstoplot[rowstoplot$'MARKER_ID' == this_variant,]
-					this_pvalue = markerrows$'PVALUE.x'[1]
-					this_maf = format(round(markerrows$'MAF'[1],digits=3),nsmall=3)
+					
+					this_pvalue = round(as.numeric(markerrows$'PVALUE.x'[1]),digits=3)
+					this_maf = round(markerrows$'MAF'[1],digits=3)
 					this_mac = markerrows$'MAC'[1]
 					this_beta = ""
+
 					if('BETA' %in% colnames(markerrows)){this_beta = markerrows$'BETA'[1];}
 					#What is the rarest genotype for this variant? If it is a het, discard it because we extract hets separately
 					rare_geno = names(tail(sort(table(markerrows$'GENOTYPE'),decreasing=T),1))
@@ -821,8 +819,6 @@ if(categorical == 0){				#quantitative phenotype
 					name = paste(thisgene, this_variant,this_pvalue,this_maf, this_mac, sep=" ")
 					));
 					#draw marker axes boundaries
-
-					#grid.rect();
 					
 					# Get the phenotype values for just those people with the rare genotype and hets. 
 					rare_pheno = as.numeric(markerrows[markerrows['GENOTYPE'] == rare_geno,phenotype])
@@ -860,7 +856,7 @@ if(categorical == 0){				#quantitative phenotype
 							);
 						}				
 					};
-
+					
 					# Write the name of the SNP on the right hand side.
 					thisgene = addspaces(thisgene, longestgenename)
 					this_variant = addspaces(this_variant, longest_variant)
