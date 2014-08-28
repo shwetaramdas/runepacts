@@ -722,6 +722,8 @@ if(categorical == 0){				#quantitative phenotype
 				name = "header"
 			));
 			
+			
+			
 			name = "NAME"
 			name = addspaces(name, longest_variant)
 			betaheader = ''
@@ -740,7 +742,9 @@ if(categorical == 0){				#quantitative phenotype
 			
 			geneheader = paste(geneheader, testheader, name, betaheader, addspaces("VAR.P", '4.0e-07'), "MAF  ", macheader, sep=" ")
 			for(column in extracolumns){
-				geneheader = paste(geneheader, column, sep=" ")
+				maxcol = allvariants[which.max(nchar(allvariants[,column])),column]
+				print(maxcol)
+				geneheader = paste(geneheader, addspaces(column,maxcol), sep=" ")
 			}
 			
 			grid.text(
@@ -961,7 +965,8 @@ if(categorical == 0){				#quantitative phenotype
 			panel.rug(x=max(phenotyperesiduals),y=0)
 			panel.rug(x=min(phenotyperesiduals),y=0)
 			upViewport(1);
-
+			
+			
 			###THIS PLOT IS DONE. NOW START PREPARING INPUT FOR NEXT PLOT
 			if(numgenesplotted < length(allgenes)){
 				genes = allgenes[(numgenesplotted+1):length(allgenes)]
