@@ -123,7 +123,10 @@ def main():
 		if 'SINGLEMARKERTEST' in options.keys():
 			defaults['SINGLEMARKERTEST'] = options['SINGLEMARKERTEST']
 		if 'FILTERMAF' in options.keys():
-			defaults['FILTERMAF'] = options['FILTERMAF']
+			if options['FILTERMAF'] == 'NA':
+				defaults['FILTERMAF'] = 0.05
+			else:
+				defaults['FILTERMAF'] = options['FILTERMAF']
 		if 'PVALUETHRESHOLD' in options.keys():
 			defaults['PVALUETHRESHOLD ']= options['PVALUETHRESHOLD']
 		else:
@@ -452,7 +455,7 @@ def main():
 		
 		for TEST in TESTS:
 			#Check if test includes an emmax test. Then check if kinship file has been provided. If not, then make one.
-			if ('emmax' in TEST.split('=')[1]) or ('mmskat' in TEST.split('=')[1]) or ('q.emmax' in options['SINGLEMARKERTEST']):
+			if ('emmax' in TEST.split('=')[1]) or ('emmaxVT' in TEST.split('=')[1]) or ('emmaxCMC' in TEST.split('=')[1])  or ('emmaxSKAT' in TEST.split('=')[1]) or ('mmskat' in TEST.split('=')[1]) or ('q.emmax' in options['SINGLEMARKERTEST']):
 				if 'KINSHIPFILE' in options.keys():
 					if not os.path.exists(os.path.join(defaults['INPUTDIR'],defaults['KINSHIPFILE'])):
 						print("Kinship file specified does not exist")
@@ -484,7 +487,7 @@ def main():
 				print epacts_command
 				os.system(epacts_command)
 				LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + epacts_command + "\n")
-				print("Epacts run! Now running single marker tests...\n")
+				print("Epacts run! \n")
 		
 		#reading in group test results
 		for TEST in TESTS:
@@ -529,11 +532,13 @@ def main():
 		
 		#now extract these markers from the full vcf
 		if 'SEPCHR' not in options:
-			tabixcommand = "vcftools --gzvcf " + vcffilename + ' --bed ' + options['OUTPREFIX'] + '.markersfromsignificantgenes.txt --recode --out ' + options['OUTPREFIX'] + '.markersfromsignificantgenes.temp'
+#			tabixcommand = "vcftools --gzvcf " + vcffilename + ' --bed ' + options['OUTPREFIX'] + '.markersfromsignificantgenes.txt --recode --out ' + options['OUTPREFIX'] + '.markersfromsignificantgenes.temp'
+#			os.system(tabixcommand)
+#			tabixcommand = 'cat ' + options['OUTPREFIX'] + '.markersfromsignificantgenes.temp.recode.vcf | grep -v "##" > ' + options['OUTPREFIX'] + '.markersfromsignificantgenes.recode.vcf'
+#			os.system(tabixcommand)
+			tabixcommand = 'tabix ' + vcffilename + ' -B ' + options['OUTPREFIX'] + '.markersfromsignificantgenes.txt | grep -v "##" > ' + options['OUTPREFIX'] + '.markersfromsignificantgenes.recode.vcf'
 			os.system(tabixcommand)
-			tabixcommand = 'cat ' + options['OUTPREFIX'] + '.markersfromsignificantgenes.temp.recode.vcf | grep -v "##" > ' + options['OUTPREFIX'] + '.markersfromsignificantgenes.recode.vcf'
-			os.system(tabixcommand)
-			singlemarkervcfs = pandas.read_table(options['OUTPREFIX'] + '.markersfromsignificantgenes.recode.vcf',header=0)
+			singlemarkervcfs = pandas.read_table(options['OUTPREFIX'] + '.markersfromsignificantgenes.recode.vcf',header=None)
 		else:
 			singlemarkervcfs = pandas.DataFrame()
 			vcffilenametomatch = vcffilename.split('/')[len(vcffilename.split('/'))-1].split('chr1')
@@ -548,11 +553,16 @@ def main():
 				if match:
 					singlemarkervcfs.append(pandas.read_table(options['OUTPREFIX'] + '.markersfromsignificantgenes.recode.vcf',header=0))
 		
+		header = subprocess.Popen('zcat '+ vcffilename +' | grep -m1 CHROM', shell=True,stdout=subprocess.PIPE)
+		header = header.communicate()[0]
+		singlemarkervcfs.columns = header.rstrip().split()
+		
 		singlemarkervcfs = singlemarkervcfs.rename(columns={singlemarkervcfs.columns[0]:'CHROM'})
+		singlemarkervcfs = singlemarkervcfs.rename(columns={singlemarkervcfs.columns[1]:'POS'})
 		singlemarkervcfs['INDEX'] = singlemarkervcfs['CHROM'].map(str) + ":" + singlemarkervcfs['POS'].map(str)
 		singlemarkervcfs = singlemarkervcfs.set_index('INDEX')		
 
-		for sample in range(len(singlemarkervcfs.columns)-1,-1,-1):
+		for sample in range(len(singlemarkervcfs.columns)-1,0,-1):
 			if singlemarkervcfs.columns[sample] not in list(samplestokeep):
 				del singlemarkervcfs[singlemarkervcfs.columns[sample]]
 		
@@ -572,13 +582,16 @@ def main():
 			
 			if genename not in list(genespassingfilters[0]):
 				continue
-			print(genename)
+
 			for marker in markerlistforgenes[genename]:
 				if marker not in singlemarkervcfs.index:
 					continue
+
 				markerresult = singlemarkerresults[singlemarkerresults.MARKER_ID == marker]
 				genotypes = singlemarkervcfs.loc[marker]
+
 				genotypes = genotypes.str.replace(':.*','')
+
 				genotypes = genotypes[genotypes != 0]
 				if len(genotypes) > 0:
 					for sample in range(0,len(genotypes)):
@@ -601,6 +614,7 @@ def main():
 		variants['MAC'] = macstoadd
 		variants = variants.rename(columns={0:"GROUP"})
 		allvariants = variants						
+		print(allvariants)
 		
 		#read annot file if it exists
 		annotations = dict()
@@ -617,6 +631,7 @@ def main():
 					del annotation[col]
 				colnum = colnum + 1
 			merged1 = pandas.merge(markeranno, annotation, left_on='MARKER', right_on = annotation.columns[0], how="left")
+			print(merged1)
 			del merged1[annotation.columns[0]]
 			merged2 = pandas.merge(allvariants, merged1, left_on = 'MARKER', right_on='MARKER_ID',how="left")
 			del merged2['MARKER_x']
