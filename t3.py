@@ -382,6 +382,28 @@ def main():
 	
 		LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + "Epacts run! Formatting output..." + "\n")		
 
+		#Create kinship matrix if needed
+		for TEST in TESTS:
+			#Check if test includes an emmax test. Then check if kinship file has been provided. If not, then make one.
+			if ('emmax' in TEST.split('=')[1]) or ('emmaxVT' in TEST.split('=')[1]) or ('emmaxCMC' in TEST.split('=')[1])  or ('emmaxSKAT' in TEST.split('=')[1]) or ('mmskat' in TEST.split('=')[1]) or ('q.emmax' in options['SINGLEMARKERTEST']):
+				if 'KINSHIPFILE' in options.keys():
+					if not os.path.exists(os.path.join(defaults['INPUTDIR'],defaults['KINSHIPFILE'])):
+						print("Kinship file specified does not exist")
+						LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + "Kinship file specified does not exist\n")
+						sys.exit()
+					kinshipcommand = ' -kin ' + os.path.join(defaults['INPUTDIR'],defaults['KINSHIPFILE']) + ' '
+				else:
+					#make kinship file from input using emmax
+					makekinshipcommand = epacts + ' make-kin '  + ' -vcf ' + vcffilename \
+											+ ' -ped ' + options['OUTPREFIX'] + '.pheno.ped ' + ' -out ' + options['OUTPREFIX'] \
+											+ '.kinf' \
+											+ ' -min-maf 0.01 -min-callrate 0.95' + ' -run 1 > /dev/null'
+					#print makekinshipcommand
+					os.system(makekinshipcommand)
+					LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + makekinshipcommand + "\n")
+					kinshipcommand = ' -kin ' + options['OUTPREFIX']  + '.kinf '
+		
+
 		#Run single marker epacts test
 		print("Running Single Marker EPACTS test...")
 		epactscommand = epacts + ' single --vcf ' + vcffilename + sepchr + ' -ped ' + options['OUTPREFIX'] + '.pheno.ped ' + '-pheno ' + phenotype + ' ' + covariatecommand + ' -test ' + defaults['SINGLEMARKERTEST']+ ' ' + kinshipcommand + markerminmaf + ' ' + markermaxmaf + ' ' + markerminmac +  ' -out ' + options['OUTPREFIX'] + '.singlemarker --run 1 > /dev/null'
@@ -452,27 +474,10 @@ def main():
 		groupfile.close()
 		newgroupfile.close()
 		os.system('mv ' + finalgroupfilename + '.temp ' + finalgroupfilename)
+		genespassingfilters = pandas.DataFrame(genespassingfilters.keys())
+		genespassingfilters.to_csv(options['OUTPREFIX'] + '.genespassingfilters.txt',index=False,index_label=False)
 		
 		for TEST in TESTS:
-			#Check if test includes an emmax test. Then check if kinship file has been provided. If not, then make one.
-			if ('emmax' in TEST.split('=')[1]) or ('emmaxVT' in TEST.split('=')[1]) or ('emmaxCMC' in TEST.split('=')[1])  or ('emmaxSKAT' in TEST.split('=')[1]) or ('mmskat' in TEST.split('=')[1]) or ('q.emmax' in options['SINGLEMARKERTEST']):
-				if 'KINSHIPFILE' in options.keys():
-					if not os.path.exists(os.path.join(defaults['INPUTDIR'],defaults['KINSHIPFILE'])):
-						print("Kinship file specified does not exist")
-						LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + "Kinship file specified does not exist\n")
-						sys.exit()
-					kinshipcommand = ' -kin ' + os.path.join(defaults['INPUTDIR'],defaults['KINSHIPFILE']) + ' '
-				else:
-					#make kinship file from input using emmax
-					makekinshipcommand = epacts + ' make-kin '  + ' -vcf ' + vcffilename \
-											+ ' -ped ' + options['OUTPREFIX'] + '.pheno.ped ' + ' -out ' + options['OUTPREFIX'] \
-											+ '.kinf' \
-											+ ' -min-maf 0.01 -min-callrate 0.95' + ' -run 1 > /dev/null'
-					#print makekinshipcommand
-					os.system(makekinshipcommand)
-					LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + makekinshipcommand + "\n")
-					kinshipcommand = ' -kin ' + options['OUTPREFIX']  + '.kinf '
-
 			#now create the epacts command
 			epacts_command = epacts + ' ' + TEST.split('=')[0] + ' -test ' + TEST.split('=')[1] + ' -vcf ' \
 											+ vcffilename + ' -pheno ' + phenotype + ' -ped ' \
@@ -517,9 +522,6 @@ def main():
 		if len(output) == 0:
 			print("Epacts groupwise test returned no significant results")
 			continue		
-
-		genespassingfilters = pandas.DataFrame(genespassingfilters.keys())
-		genespassingfilters.to_csv(options['OUTPREFIX'] + '.genespassingfilters.txt',index=False,index_label=False)
 		
 		markernames = pandas.DataFrame(markernames)
 		markernames = pandas.DataFrame(markernames[markernames.columns[0]].str.split(":").tolist())
@@ -614,7 +616,6 @@ def main():
 		variants['MAC'] = macstoadd
 		variants = variants.rename(columns={0:"GROUP"})
 		allvariants = variants						
-		print(allvariants)
 		
 		#read annot file if it exists
 		annotations = dict()
@@ -631,7 +632,6 @@ def main():
 					del annotation[col]
 				colnum = colnum + 1
 			merged1 = pandas.merge(markeranno, annotation, left_on='MARKER', right_on = annotation.columns[0], how="left")
-			print(merged1)
 			del merged1[annotation.columns[0]]
 			merged2 = pandas.merge(allvariants, merged1, left_on = 'MARKER', right_on='MARKER_ID',how="left")
 			del merged2['MARKER_x']
@@ -673,7 +673,7 @@ def main():
 			LOGFILE.write(str(time.asctime(time.localtime(time.time()))) + "\t" + "R --vanilla --slave --args "+ options['OUTPREFIX'] + '.variants.txt ' + phenotype + ' ' + options['OUTPREFIX'] + ' ' + teststowrite + ' ' + str(defaults['PVALUETHRESHOLD']) + ' "' + options['MODEL'].split('~')[1] + '" < l3.R')
 			print("R --vanilla --slave --args "+ options['OUTPREFIX'] + '.allvariants.txt ' + phenotype + ' ' + options['OUTPREFIX'] + ' ' + teststowrite + ' ' + str(defaults['PVALUETHRESHOLD']) + ' "' + options['MODEL'].split('~')[1] + '" < l3.R')
 		else:
-			os.system("R --vanilla --slave --args "+ options['OUTPREFIX'] + '.allvariants.txt ' + phenotype + ' ' + options['OUTPREFIX'] + ' ' + teststowrite + ' ' + str(defaults['PVALUETHRESHOLD']) + " " + 'NA' + ' < lattice.multiplegenes2.R')
+			os.system("R --vanilla --slave --args "+ options['OUTPREFIX'] + '.allvariants.txt ' + phenotype + ' ' + options['OUTPREFIX'] + ' ' + teststowrite + ' ' + str(defaults['PVALUETHRESHOLD']) + " " + 'NA' + ' < l3.R')
 			LOGFILE.write(str(time.asctime(time.localtime(time.time()))) + "\t" + "R --vanilla --slave --args "+ options['OUTPREFIX'] + '.allvariants.txt ' + phenotype + ' ' + options['OUTPREFIX'] + ' ' + teststowrite + ' ' + str(defaults['PVALUETHRESHOLD']) + ' ' + 'NA '+ ' < l3.R' + "\n")
 			print("R --vanilla --slave --args "+ options['OUTPREFIX'] + '.allvariants.txt ' + phenotype + ' ' + options['OUTPREFIX'] + ' ' + teststowrite + ' ' + str(defaults['PVALUETHRESHOLD']) + ' ' + 'NA '+ ' < l3.R')
 		############
