@@ -413,8 +413,20 @@ def main():
 
 		#read in single marker results
 		singlemarkeroutput = pandas.read_table(options['OUTPREFIX'] + '.singlemarker.epacts.gz', compression="gzip")
-		singlemarkeroutput['MARKER_ID'] = singlemarkeroutput['MARKER_ID'].str.replace("_.\/._","|")
-		singlemarkerresults = pandas.DataFrame(singlemarkeroutput.MARKER_ID.str.split('|').tolist(),columns="MARKER_ID MARKER".split())
+		#singlemarkeroutput['MARKER_ID'] = singlemarkeroutput['MARKER_ID'].str.replace("_.\/._","|")
+		singlemarkerresults = pandas.DataFrame(singlemarkeroutput.MARKER_ID.str.split('_').tolist())
+		if len(singlemarkerresults.columns) > 3:
+			ncol = len(singlemarkerresults.columns)
+			for i in range((ncol-1),2,-1):
+				singlemarkerresults[singlemarkerresults.columns[2]] = singlemarkerresults[singlemarkerresults.columns[2]].map(str) + "_" + singlemarkerresults[singlemarkerresults.columns[i]].map(str)
+				singlemarkerresults[singlemarkerresults.columns[2]] = singlemarkerresults[singlemarkerresults.columns[2]].str.replace("_None","")
+				del singlemarkerresults[singlemarkerresults.columns[i]]
+			
+		singlemarkerresults[singlemarkerresults.columns[0]] = singlemarkerresults[singlemarkerresults.columns[0]].map(str) + "_" + singlemarkerresults[singlemarkerresults.columns[1]].map(str)
+		del singlemarkerresults[singlemarkerresults.columns[1]]
+		
+		
+		singlemarkerresults.columns = "MARKER_ID MARKER".split()
 		
 		markeranno = singlemarkerresults[['MARKER', 'MARKER_ID']]
 		singlemarkerresults['MAF'] = singlemarkeroutput['MAF']
@@ -431,7 +443,6 @@ def main():
 		pandas.DataFrame(passsnps).to_csv("PASSSNPS.txt",sep="\t",index=False,index_label=False)
 		
 		#get all markers belonging to a gene
-		os.system('cp ' + finalgroupfilename + ' TEMP')
 		groupfile = open(finalgroupfilename)
 		newgroupfile = open(finalgroupfilename + '.temp', 'w')
 		markerlistforgenes = dict()
@@ -445,9 +456,10 @@ def main():
 		for line in groupfile:
 			line = line.rstrip()
 			temp = line.split()
+			originaltemp = line.split()
 			genename = temp[0]
 			temp = temp[1:]
-			
+			originaltemp = originaltemp[1:]
 			numvars = 0
 			mac = 0 
 			
@@ -455,7 +467,7 @@ def main():
 			#iterating over all markers in gene, find if gene passes filters. also get 
 			for tempindex in range(0,len(temp)):
 				original = temp[tempindex]
-				temp[tempindex] = re.sub(r"_.*","",temp[tempindex])
+				#temp[tempindex] = re.sub(r"_.*","",temp[tempindex])
 				if temp[tempindex] in passsnps:
 					towrite = towrite + "\t" + original
 					numvars = numvars + 1
@@ -465,7 +477,7 @@ def main():
 				genespassingfilters[genename] = 1
 				for tempindex in range(0,len(temp)):
 					if temp[tempindex] in passsnps:
-						markernames.append(temp[tempindex])
+						markernames.append(originaltemp[tempindex])
 			
 			newgroupfile.write(towrite + "\n")
 			markerlistforgenes[genename] = temp
@@ -524,15 +536,22 @@ def main():
 			continue		
 		
 		markernames = pandas.DataFrame(markernames)
+		markernames[markernames.columns[0]] = markernames[markernames.columns[0]].str.replace("_",":")
 		markernames = pandas.DataFrame(markernames[markernames.columns[0]].str.split(":").tolist())
 		markernames[markernames.columns[1]] = markernames[markernames.columns[1]].astype(int)
+		
+		markernameswithalleles = markernames
+		del markernames[markernames.columns[2]]
 		
 		markernames['END'] = markernames[markernames.columns[1]].astype(int) + numpy.repeat(1,len(markernames))
 		markernames[markernames.columns[1]] = markernames[markernames.columns[1]].astype(int) - numpy.repeat(1,len(markernames))
 		markernames = markernames.sort(columns=[markernames.columns[0], markernames.columns[1]])
 		markernames.to_csv(options['OUTPREFIX'] + '.markersfromsignificantgenes.txt',sep="\t",index=False,index_label=False)
 		
+		markernames = markernameswithalleles
+		
 		#now extract these markers from the full vcf
+		singlemarkervcfs = pandas.DataFrame()
 		if 'SEPCHR' not in options:
 #			tabixcommand = "vcftools --gzvcf " + vcffilename + ' --bed ' + options['OUTPREFIX'] + '.markersfromsignificantgenes.txt --recode --out ' + options['OUTPREFIX'] + '.markersfromsignificantgenes.temp'
 #			os.system(tabixcommand)
@@ -542,7 +561,6 @@ def main():
 			os.system(tabixcommand)
 			singlemarkervcfs = pandas.read_table(options['OUTPREFIX'] + '.markersfromsignificantgenes.recode.vcf',header=None)
 		else:
-			singlemarkervcfs = pandas.DataFrame()
 			vcffilenametomatch = vcffilename.split('/')[len(vcffilename.split('/'))-1].split('chr1')
 			for f in os.listdir(options['VCFDIR']):
 				if '.gz.tbi' in f:
@@ -553,15 +571,19 @@ def main():
 						match = False
 						break
 				if match:
-					singlemarkervcfs.append(pandas.read_table(options['OUTPREFIX'] + '.markersfromsignificantgenes.recode.vcf',header=0))
-		
+					tabixcommand = 'tabix ' + os.path.join(options['VCFDIR'], f) + ' -B ' + options['OUTPREFIX'] + '.markersfromsignificantgenes.txt | grep -v "##" > ' + options['OUTPREFIX'] + '.markersfromsignificantgenes.recode.vcf'
+					os.system(tabixcommand)
+					singlemarkervcfs = singlemarkervcfs.append(pandas.read_table(options['OUTPREFIX'] + '.markersfromsignificantgenes.recode.vcf',header=None))
+						
 		header = subprocess.Popen('zcat '+ vcffilename +' | grep -m1 CHROM', shell=True,stdout=subprocess.PIPE)
 		header = header.communicate()[0]
 		singlemarkervcfs.columns = header.rstrip().split()
 		
 		singlemarkervcfs = singlemarkervcfs.rename(columns={singlemarkervcfs.columns[0]:'CHROM'})
 		singlemarkervcfs = singlemarkervcfs.rename(columns={singlemarkervcfs.columns[1]:'POS'})
-		singlemarkervcfs['INDEX'] = singlemarkervcfs['CHROM'].map(str) + ":" + singlemarkervcfs['POS'].map(str)
+		singlemarkervcfs = singlemarkervcfs.rename(columns={singlemarkervcfs.columns[3]:'REF'})
+		singlemarkervcfs = singlemarkervcfs.rename(columns={singlemarkervcfs.columns[4]:'ALT'})
+		singlemarkervcfs['INDEX'] = singlemarkervcfs['CHROM'].map(str) + ":" + singlemarkervcfs['POS'].map(str) + "_" + singlemarkervcfs['REF'].map(str) + '/' + singlemarkervcfs['ALT'].map(str)
 		singlemarkervcfs = singlemarkervcfs.set_index('INDEX')		
 
 		for sample in range(len(singlemarkervcfs.columns)-1,0,-1):
@@ -617,6 +639,7 @@ def main():
 		variants = variants.rename(columns={0:"GROUP"})
 		allvariants = variants						
 		
+		
 		#read annot file if it exists
 		annotations = dict()
 		if ('ANNOTCOLUMNS' in options) and ('ANNOTFILE' in options):
@@ -631,9 +654,13 @@ def main():
 				if ((col not in columns)) and (colnum > 0):
 					del annotation[col]
 				colnum = colnum + 1
-			merged1 = pandas.merge(markeranno, annotation, left_on='MARKER', right_on = annotation.columns[0], how="left")
-			del merged1[annotation.columns[0]]
+			merged1 = pandas.merge(markeranno, annotation, left_on='MARKER', right_on = annotation.columns[defaults['ANNOTVARCOL']], how="left")
+			print(merged1)
+			print(merged1.iloc[0])
+			del merged1[annotation.columns[defaults['ANNOTVARCOL']]]
 			merged2 = pandas.merge(allvariants, merged1, left_on = 'MARKER', right_on='MARKER_ID',how="left")
+			print(merged2)
+			print(merged1.iloc[0])
 			del merged2['MARKER_x']
 			merged2 = merged2.rename(columns={"MARKER_y":"MARKERNAME"})
 			allvariants = merged2

@@ -724,7 +724,7 @@ if(categorical == 0){				#quantitative phenotype
 			
 			
 			
-			name = "NAME"
+			name = "VARIANT"
 			name = addspaces(name, longest_variant)
 			betaheader = ''
 			if(length(longest_beta >= 1)){betaheader = addspaces("BETA", longest_beta);}
