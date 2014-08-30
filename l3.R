@@ -332,7 +332,7 @@ phenotype = arguments[2]
 
 prefix = arguments[3]				#this is the argument for the prefix of the filename to read
 tests = arguments[4]
-pvaluethreshold = arguments[5]
+pvaluethreshold = as.numeric(arguments[5])
 tests = strsplit(tests, ',')
 covariates = arguments[6]
 
@@ -410,7 +410,8 @@ for(i in 1:length(tests[[1]])){
 		genepvalues1 = epacts1[,c('MARKER_ID', 'PVALUE')]
 		genepvalues1['TEST'] = tests[[1]][i]
 		genepvalues = rbind(genepvalues, genepvalues1)
-		epacts[tests[[1]][i]] = epacts1['PVALUE']
+		epacts[tests[[1]][i]] = sprintf("%0.3g",epacts1['PVALUE'])
+		
 	}
 }
 
@@ -426,13 +427,13 @@ merged$'PVALUE.x' = sprintf("%0.3g",merged$'PVALUE.x')
 merged$'PVALUE.y' = sprintf("%0.3g",merged$'PVALUE.y')
 
 allgenes = unique(merged[,c('GROUP','PVALUE.y')])
-allgenes = allgenes[which(allgenes[,2] <= pvaluethreshold),]
+allgenes = allgenes[which(as.numeric(allgenes[,2]) <= pvaluethreshold),]
 allgenes = allgenes[order(allgenes[,2]),1]
 allgenes = unique(allgenes)
 
 genes = unique(merged[,c('GROUP', 'PVALUE.y')])
 genes = genes[order(genes[,2]),]
-genes = genes[which(genes[,2] <= pvaluethreshold),]
+genes = genes[which(as.numeric(genes[,2]) <= pvaluethreshold),]
 genes = unique(genes[,1])
 totalgenes = length(genes)
 
@@ -441,7 +442,7 @@ merged['GENENAME'] = unlist(strsplit(merged$GROUP, "_"))[seq(2,2*nrow(merged),2)
 filteredresults = merge(merged, genespassingfilters, by.x='GENENAME', by.y=1,sort=F)
 genes = filteredresults[,c('GROUP', 'PVALUE.y')]
 genes = genes[order(genes[,2]),]
-genes = genes[which(genes[,2] <= pvaluethreshold),]
+genes = genes[which(as.numeric(genes[,2]) <= pvaluethreshold),]
 genes = unique(genes[,1])
 totalgenes = length(genes)
 
@@ -463,6 +464,7 @@ if(categorical == 0){				#quantitative phenotype
 		longest_beta = ""
 		longest_mac = ""
 
+		print(genes)
 		#this for loop gets the number of genes to plot as a histogram, and how many pages to split it into. maximum of 40 rows per page.
 		if(length(genes) > 0){
 			for(genenum in 1:length(genes)){
