@@ -410,16 +410,20 @@ for(i in 1:length(tests[[1]])){
 		genepvalues1 = epacts1[,c('MARKER_ID', 'PVALUE')]
 		genepvalues1['TEST'] = tests[[1]][i]
 		genepvalues = rbind(genepvalues, genepvalues1)
-		epacts[tests[[1]][i]] = sprintf("%0.3g",epacts1['PVALUE'])
+		epacts[tests[[1]][i]] = epacts1['PVALUE']
 		
 	}
 }
 
 merged = merge(merged, epacts, by.x = 'GROUP', by.y = 'MARKER_ID')
-merged$'MAC' = sprintf("%0.2g",merged$'MAC')
+merged$'MAC' = round(merged$'MAC',2)
 #sort by BETA, then by pvalue for the gene, then by pvalue of the individual markers
 if('BETA' %in% colnames(merged)){
-	merged = merged[order(merged$'PVALUE.y', -abs(merged$'BETA'),merged$'PVALUE.x'),];
+	merged = merged[order(as.numeric(merged$'PVALUE.y'), merged$'PVALUE.x', -abs(merged$'BETA')),];
+}
+
+for(i in 1:length(tests[[1]])){
+	merged[tests[[1]][i]] = apply(merged[tests[[1]][i]], 1, function(x) sprintf("%0.3g",as.numeric(x)))
 }
 
 merged$'BETA' = format(round(merged$'BETA',2),nsmall=2)
@@ -699,7 +703,7 @@ if(categorical == 0){				#quantitative phenotype
 			# This has 1 row for the histogram, a spacer row, and then however many 
 			inner_layout = grid.layout(
 			# rows are needed for each variant. 
-				nrow = 1 + 1 + 1 + totalvariants + 1,
+				nrow = 1 + 1+ 1 + totalvariants + 1,
 				ncol = 1,
 				height = unit.c(
 					unit(13,'lines'),
@@ -724,8 +728,6 @@ if(categorical == 0){				#quantitative phenotype
 				name = "header"
 			));
 			
-			
-			
 			name = "VARIANT"
 			name = addspaces(name, longest_variant)
 			betaheader = ''
@@ -742,7 +744,7 @@ if(categorical == 0){				#quantitative phenotype
 				testheader = paste(testheader, curtest, sep=" ")
 			}
 			
-			geneheader = paste(geneheader, testheader, name, betaheader, addspaces("VAR.P", '4.0e-07'), "MAF  ", macheader, sep=" ")
+			geneheader = paste(geneheader, testheader, name, betaheader, addspaces("VAR.P", '4.0e-07'), "MAF     ", macheader, sep=" ")
 			for(column in extracolumns){
 				maxcol = allvariants[which.max(nchar(allvariants[,column])),column]
 				print(maxcol)
@@ -782,7 +784,7 @@ if(categorical == 0){				#quantitative phenotype
 				thisgene = gsub(".*_","",thisgene, perl=T)
 				genepvalue = ''
 				for(testnum in 1:length(tests[[1]])){
-					thistestgenepvalue = round(as.numeric(rowstoplot[1,tests[[1]][testnum]]),3)
+					thistestgenepvalue = rowstoplot[1,tests[[1]][testnum]]
 					thistestgenepvalue = addspaces(thistestgenepvalue, "4.0e-07 ")
 					genepvalue = paste(genepvalue, thistestgenepvalue,sep=" ")
 				}
@@ -792,9 +794,13 @@ if(categorical == 0){				#quantitative phenotype
 					this_variant = markersingene[i];
 					markerrows = rowstoplot[rowstoplot$'MARKER_ID' == this_variant,]
 					
-					this_pvalue = round(as.numeric(markerrows$'PVALUE.x'[1]),digits=3)
-					this_maf = round(markerrows$'MAF'[1],digits=3)
-					this_mac = markerrows$'MAC'[1]
+					this_pvalue = markerrows$'PVALUE.x'[1]
+					print(markerrows$'MAF'[1])
+					this_maf = as.numeric(markerrows$'MAF'[1])
+					if(this_maf < 0.0005){this_maf = format(this_maf,scientific=TRUE);}
+					else{this_maf = round(this_maf, 3);}
+					print(this_maf)
+					this_mac = sprintf("%0.2g",as.numeric(markerrows$'MAC'[1]))
 					this_beta = ""
 
 					if('BETA' %in% colnames(markerrows)){this_beta = markerrows$'BETA'[1];}
@@ -874,8 +880,8 @@ if(categorical == 0){				#quantitative phenotype
 #					if(substr(this_beta,1,1) != '-'){ this_beta = paste('+', this_beta,sep=""); }
 					this_beta = addspaces(this_beta, longest_beta)
 					this_mac = addspaces(this_mac, longest_mac)
-					this_maf = addspaces(this_maf, "0.000")
-					this_pvalue = addspaces(this_pvalue, "0.000")
+					this_maf = addspaces(this_maf, "4.0e-07")
+					this_pvalue = addspaces(this_pvalue, "4.0e-07")
 					infoonright = paste(thisgene, genepvalue, this_variant,this_beta, this_pvalue,this_maf,this_mac, sep=" ")
 					colnum = 0
 					for(column in extracolumns){
