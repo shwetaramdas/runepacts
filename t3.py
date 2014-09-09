@@ -1,3 +1,22 @@
+#!/usr/bin/env python
+
+def bootstrap_lib(lib_path):
+  import os, sys
+  from glob import glob
+
+  exist_eggs = [os.path.basename(i) for i in sys.path];
+
+  sys.path.insert(1,lib_path);
+
+  for d in glob(os.path.join(lib_path,"*egg")):
+    if os.path.basename(d) in exist_eggs:
+      continue;
+    else:
+      sys.path.insert(1,d);
+
+bootstrap_lib("/net/snowwhite/home/welchr/lib/python2.7/site-packages");
+
+
 import sys
 import os
 import re
@@ -362,7 +381,7 @@ def main():
 					annoheadersplit = annofile.columns
 					
 					annorowstokeep = evalexpression(filter, annofile)
-					annofile = annofile.iloc[list(annorowstokeep),:]
+					annofile = annofile.iloc[annorowstokeep]
 					annofile.to_csv(os.path.join(defaults['INPUTDIR'], options['ANNOTFILE'].replace('.gz', '') + '.filtered.txt'),sep="\t", index=False)
 					create_group_file(options['OUTPREFIX'], vcffilename, defaults['INPUTDIR'] + '/' + options['ANNOTFILE'].replace('.gz', '') + '.filtered.txt', 'NA', defaults['FILTERMAF'], DELIM_MAF, DELIM_ANNO,samplestokeep,defaults['ANNOTVARCOL'],defaults['ANNOTGENECOL'],defaults['ANNOTPOSCOL'],sepchr)
 					
@@ -383,6 +402,7 @@ def main():
 		LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + "Epacts run! Formatting output..." + "\n")		
 
 		#Create kinship matrix if needed
+		markerkinshipcommand = ''
 		for TEST in TESTS:
 			#Check if test includes an emmax test. Then check if kinship file has been provided. If not, then make one.
 			if ('emmax' in TEST.split('=')[1]) or ('emmaxVT' in TEST.split('=')[1]) or ('emmaxCMC' in TEST.split('=')[1])  or ('emmaxSKAT' in TEST.split('=')[1]) or ('mmskat' in TEST.split('=')[1]) or ('q.emmax' in options['SINGLEMARKERTEST']):
@@ -391,7 +411,9 @@ def main():
 						print("Kinship file specified does not exist")
 						LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + "Kinship file specified does not exist\n")
 						sys.exit()
-					kinshipcommand = ' -kin ' + os.path.join(defaults['INPUTDIR'],defaults['KINSHIPFILE']) + ' '
+					if ('emmax' in TEST.split('=')[1]) or ('emmaxVT' in TEST.split('=')[1]) or ('emmaxCMC' in TEST.split('=')[1])  or ('emmaxSKAT' in TEST.split('=')[1]) or ('mmskat' in TEST.split('=')[1]):
+						kinshipcommand = ' -kin ' + os.path.join(defaults['INPUTDIR'],defaults['KINSHIPFILE']) + ' '
+
 				else:
 					#make kinship file from input using emmax
 					makekinshipcommand = epacts + ' make-kin '  + ' -vcf ' + vcffilename \
@@ -401,12 +423,19 @@ def main():
 					#print makekinshipcommand
 					os.system(makekinshipcommand)
 					LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + makekinshipcommand + "\n")
-					kinshipcommand = ' -kin ' + options['OUTPREFIX']  + '.kinf '
-		
+					if ('emmax' in TEST.split('=')[1]) or ('emmaxVT' in TEST.split('=')[1]) or ('emmaxCMC' in TEST.split('=')[1])  or ('emmaxSKAT' in TEST.split('=')[1]) or ('mmskat' in TEST.split('=')[1]):
+						kinshipcommand = ' -kin ' + options['OUTPREFIX']  + '.kinf '
+			
+			if ('q.emmax' in options['SINGLEMARKERTEST']):
+				if 'KINSHIPFILE' not in options.keys():
+					
+					markerkinshipcommand = ' -kin ' + options['OUTPREFIX'] + '.kinf' + ' '
+				else:
+					markerkinshipcommand = ' -kin ' + os.path.join(options['INPUTDIR'],options['KINSHIPFILE']) + ' '
 
 		#Run single marker epacts test
 		print("Running Single Marker EPACTS test...")
-		epactscommand = epacts + ' single --vcf ' + vcffilename + sepchr + ' -ped ' + options['OUTPREFIX'] + '.pheno.ped ' + '-pheno ' + phenotype + ' ' + covariatecommand + ' -test ' + defaults['SINGLEMARKERTEST']+ ' ' + kinshipcommand + markerminmaf + ' ' + markermaxmaf + ' ' + markerminmac +  ' -out ' + options['OUTPREFIX'] + '.singlemarker --run 1 > /dev/null'
+		epactscommand = epacts + ' single --vcf ' + vcffilename + sepchr + ' -ped ' + options['OUTPREFIX'] + '.pheno.ped ' + '-pheno ' + phenotype + ' ' + covariatecommand + ' -test ' + defaults['SINGLEMARKERTEST'] +  ' ' + markerkinshipcommand  + markerminmaf + ' ' + markermaxmaf + ' ' + markerminmac +  ' -out ' + options['OUTPREFIX'] + '.singlemarker --run 1 > /dev/null'
 		print(epactscommand)
 		LOGFILE.write(str(time.asctime(time.localtime(time.time()))) + "\t" + epactscommand + "\n")
 		os.system(epactscommand)		
@@ -440,7 +469,7 @@ def main():
 		passsnps = passsnps[passsnps['MAC'] >= defaults['MARKERMINMAC']]
 		macs = passsnps[['MARKER_ID', 'MAC']].drop_duplicates()
 		passsnps = list(passsnps['MARKER_ID'])
-		pandas.DataFrame(passsnps).to_csv("PASSSNPS.txt",sep="\t",index=False,index_label=False)
+		#pandas.DataFrame(passsnps).to_csv("PASSSNPS.txt",sep="\t",index=False,index_label=False)
 		
 		#get all markers belonging to a gene
 		groupfile = open(finalgroupfilename)
@@ -464,11 +493,13 @@ def main():
 			mac = 0 
 			
 			towrite = genename
+			passed = False
 			#iterating over all markers in gene, find if gene passes filters. also get 
 			for tempindex in range(0,len(temp)):
 				original = temp[tempindex]
 				#temp[tempindex] = re.sub(r"_.*","",temp[tempindex])
 				if temp[tempindex] in passsnps:
+					passed = True
 					towrite = towrite + "\t" + original
 					numvars = numvars + 1
 					mac = mac + float(macs[macs['MARKER_ID'] == temp[tempindex]]['MAC'])
@@ -479,7 +510,8 @@ def main():
 					if temp[tempindex] in passsnps:
 						markernames.append(originaltemp[tempindex])
 			
-			newgroupfile.write(towrite + "\n")
+			if passed:
+				newgroupfile.write(towrite + "\n")
 			markerlistforgenes[genename] = temp
 			macsofgenes[genename] = mac
 			
@@ -584,10 +616,11 @@ def main():
 		singlemarkervcfs = singlemarkervcfs.rename(columns={singlemarkervcfs.columns[3]:'REF'})
 		singlemarkervcfs = singlemarkervcfs.rename(columns={singlemarkervcfs.columns[4]:'ALT'})
 		singlemarkervcfs['INDEX'] = singlemarkervcfs['CHROM'].map(str) + ":" + singlemarkervcfs['POS'].map(str) + "_" + singlemarkervcfs['REF'].map(str) + '/' + singlemarkervcfs['ALT'].map(str)
-		singlemarkervcfs = singlemarkervcfs.set_index('INDEX')		
+		singlemarkervcfs = singlemarkervcfs.set_index('INDEX')
 
-		for sample in range(len(singlemarkervcfs.columns)-1,0,-1):
-			if singlemarkervcfs.columns[sample] not in list(samplestokeep):
+
+		for sample in range((len(singlemarkervcfs.columns)-1),-1,-1):
+			if singlemarkervcfs.columns[sample] not in samplestokeep.map(str).tolist():
 				del singlemarkervcfs[singlemarkervcfs.columns[sample]]
 		
 		#now for each significant gene, get the genotypes for each sample, and 
@@ -606,16 +639,15 @@ def main():
 			
 			if genename not in list(genespassingfilters[0]):
 				continue
-
+			
 			for marker in markerlistforgenes[genename]:
 				if marker not in singlemarkervcfs.index:
 					continue
-
+				
 				markerresult = singlemarkerresults[singlemarkerresults.MARKER_ID == marker]
 				genotypes = singlemarkervcfs.loc[marker]
-
+				
 				genotypes = genotypes.str.replace(':.*','')
-
 				genotypes = genotypes[genotypes != 0]
 				if len(genotypes) > 0:
 					for sample in range(0,len(genotypes)):
@@ -644,10 +676,12 @@ def main():
 		annotations = dict()
 		if ('ANNOTCOLUMNS' in options) and ('ANNOTFILE' in options):
 			annotation = pandas.read_table(defaults['INPUTDIR'] + '/' + defaults['ANNOTFILE'],compression="gzip")
-			annotation = annotation.rename(columns={annotation.columns[4]:"GROUP"})
-			
+			annotation = annotation.rename(columns={annotation.columns[defaults['ANNOTGENECOL']]:"GROUP"})
+		print("here")
+		print(allvariants)	
 		if 'ANNOTCOLUMNS' in options:
 			columns = options['ANNOTCOLUMNS'].split(",")
+			print(columns)
 			annonum = 0
 			colnum = 0
 			for col in annotation.columns:
@@ -655,9 +689,8 @@ def main():
 					del annotation[col]
 				colnum = colnum + 1
 			merged1 = pandas.merge(markeranno, annotation, left_on='MARKER', right_on = annotation.columns[defaults['ANNOTVARCOL']], how="left")
-			print(merged1)
-			print(merged1.iloc[0])
-			del merged1[annotation.columns[defaults['ANNOTVARCOL']]]
+			if annotation.columns[defaults['ANNOTVARCOL']] not in columns:
+				del merged1[annotation.columns[defaults['ANNOTVARCOL']]]
 			merged2 = pandas.merge(allvariants, merged1, left_on = 'MARKER', right_on='MARKER_ID',how="left")
 			print(merged2)
 			print(merged1.iloc[0])
