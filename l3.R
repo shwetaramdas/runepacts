@@ -974,11 +974,6 @@ if(categorical == 0){				#quantitative phenotype
 					gp = gpar(col="grey")
 				);
 				grid.lines(
-					x=unit(meanpheno_variant, 'native'),
-					y = unit(c(0,1),'npc'),
-					gp = gpar(col="dark green")
-				);			
-				grid.lines(
 					x=unit(0, 'npc'),
 					y = unit(c(0,1),'npc'),
 					gp = gpar(col="black")
