@@ -429,6 +429,8 @@ for(i in 1:length(tests[[1]])){
 merged$'BETA' = format(round(merged$'BETA',2),nsmall=2)
 merged$'PVALUE.x' = sprintf("%0.3g",merged$'PVALUE.x')
 merged$'PVALUE.y' = sprintf("%0.3g",merged$'PVALUE.y')
+#merged$'BETA' = format(round(merged$'BETA',2),nsmall=2)
+merged$'MAF' = sprintf("%0.3g",merged$'MAF')
 
 allgenes = unique(merged[,c('GROUP','PVALUE.y')])
 allgenes = allgenes[which(as.numeric(allgenes[,2]) <= pvaluethreshold),]
@@ -703,12 +705,14 @@ if(categorical == 0){				#quantitative phenotype
 			# This has 1 row for the histogram, a spacer row, and then however many 
 			inner_layout = grid.layout(
 			# rows are needed for each variant. 
-				nrow = 1 + 1+ 1 + totalvariants + 1,
+				nrow = 1 + 1 +1 + totalvariants  + length(allgenes)+ 1,
 				ncol = 1,
 				height = unit.c(
 					unit(13,'lines'),
 					unit(3,'lines'),
+					unit(1,'lines'),
 					rep(unit(axis_height,'lines'),totalvariants),
+					rep(unit(axis_height,'lines'),length(allgenes)),
 					unit(1,'null')
 				)
 			);
@@ -778,6 +782,7 @@ if(categorical == 0){				#quantitative phenotype
 
 			for(genenum in 1:length(genes)){
 				thisgene = genes[genenum]
+				print(thisgene)
 				rowstoplot = merged[merged$'GROUP' == thisgene,]
 				num_variants = length(unique(rowstoplot$'MARKER_ID'))
 				markersingene = unique(rowstoplot$'MARKER_ID')
@@ -788,18 +793,19 @@ if(categorical == 0){				#quantitative phenotype
 					thistestgenepvalue = addspaces(thistestgenepvalue, "4.0e-07 ")
 					genepvalue = paste(genepvalue, thistestgenepvalue,sep=" ")
 				}
-				
+
+				rowswithminorvariants = c()
 				for (i in 1:num_variants){
 					j = j + 1
 					this_variant = markersingene[i];
+					print(this_variant)
 					markerrows = rowstoplot[rowstoplot$'MARKER_ID' == this_variant,]
+
 					
 					this_pvalue = markerrows$'PVALUE.x'[1]
-					print(markerrows$'MAF'[1])
 					this_maf = as.numeric(markerrows$'MAF'[1])
 					if(this_maf < 0.0005){this_maf = format(this_maf,scientific=TRUE);}
 					else{this_maf = round(this_maf, 3);}
-					print(this_maf)
 					this_mac = sprintf("%0.2g",as.numeric(markerrows$'MAC'[1]))
 					this_beta = ""
 
@@ -816,6 +822,7 @@ if(categorical == 0){				#quantitative phenotype
 							this_pvalue = paste(this_pvalue, " ", sep="")
 						}
 					}
+
 					if(nchar(this_maf) < 5){
 						chars_to_add = 5 - nchar(this_maf)
 						for(chartoadd in 1:chars_to_add){
@@ -829,6 +836,7 @@ if(categorical == 0){				#quantitative phenotype
 						genepvalue = paste(rep(" ",nchar(genepvalue)),collapse="")
 					}
 					
+					print(j)
 					# Create the viewport. 
 					pushViewport(viewport(
 					layout.pos.row = 2 + j,
@@ -840,6 +848,16 @@ if(categorical == 0){				#quantitative phenotype
 					# Get the phenotype values for just those people with the rare genotype and hets. 
 					rare_pheno = as.numeric(markerrows[markerrows['GENOTYPE'] == rare_geno,phenotype])
 					hets_pheno = as.numeric(markerrows[markerrows['GENOTYPE'] == '0/1',phenotype])
+					
+					notrarerows = which(markerrows['GENOTYPE'] != rare_geno) 
+					nothetrows = which(markerrows['GENOTYPE'] != '0/1') 
+					notmissing = which(markerrows['GENOTYPE'] != 'NA')
+					
+					if (length(rowswithminorvariants) == 0){
+						rowswithminorvariants = markerrows[intersect(intersect(notrarerows, nothetrows),notmissing),]
+					}else{
+						rowswithminorvariants = rbind(rowswithminorvariants, markerrows[intersect(intersect(notrarerows, nothetrows),notmissing),])
+					}
 					
 					rare_pheno = rare_pheno[!is.na(rare_pheno)]
 					hets_pheno = hets_pheno[!is.na(hets_pheno)]			
@@ -924,7 +942,7 @@ if(categorical == 0){				#quantitative phenotype
 					tempx = convertUnit(unit(1,'npc')+convertUnit(unit(widthtouse,'in'), 'npc'), 'native')
 					tempx = convertUnit(tempx, 'npc')
 					
-					if(i < num_variants){
+					if(i <= num_variants){
 						grid.lines(
 							x = unit(c(1,tempx),'npc'),
 							y = unit(c(0,0), 'npc'),
@@ -937,10 +955,52 @@ if(categorical == 0){				#quantitative phenotype
 						)
 					}
 					# Go back up so we can push another viewport within the layout (the viewport higher up in the tree.) 	
-					if(i < num_variants){
+					if(i <= num_variants){
 						upViewport(1);
 					}
 				}
+
+				j = j+1
+				#additional row for non-carriers of the gene
+				pushViewport(viewport(
+					layout.pos.row = 2 + j,
+					xscale = xscale,
+					name = paste(thisgene, "noncarriers", sep=" ")
+					));
+				noncarrierspheno = as.numeric(rowswithminorvariants[,phenotype])
+				grid.lines(
+					x=unit(phenotypemean, 'native'),
+					y = unit(c(0,1),'npc'),
+					gp = gpar(col="grey")
+				);
+				grid.lines(
+					x=unit(meanpheno_variant, 'native'),
+					y = unit(c(0,1),'npc'),
+					gp = gpar(col="dark green")
+				);			
+				grid.lines(
+					x=unit(0, 'npc'),
+					y = unit(c(0,1),'npc'),
+					gp = gpar(col="black")
+				);
+				grid.lines(
+					x=unit(1, 'npc'),
+					y = unit(c(0,1),'npc'),
+					gp = gpar(col="black")
+				);
+
+				
+				grid.points(
+				x = unit(noncarrierspheno,'native'),
+				y = unit(rep(0.5,length(noncarrierspheno)),'npc'),
+				pch = 1,
+				gp = gpar(
+					cex = 0.2,
+					col="grey",
+					pch=3
+				)
+				);
+				
 				#extend the gridline on the right
 				tempx = convertUnit(unit(1,'npc')+convertUnit(unit(widthtouse,'in'), 'npc'), 'native')
 				tempx = convertUnit(tempx, 'npc')
@@ -949,10 +1009,13 @@ if(categorical == 0){				#quantitative phenotype
 					x = unit(c(0,tempx),'npc'),
 					y = unit(c(0,0), 'npc')
 				)
-
+				
+				
 				upViewport(1);
 			}
-
+			
+			print("here")
+			print(current.viewport())
 			# Now draw the phenotype distribution. 
 			pushViewport(viewport(
 			layout.pos.row = 1,
@@ -960,6 +1023,7 @@ if(categorical == 0){				#quantitative phenotype
 			yscale = yscale,
 			name = "hist"
 			))
+			print(current.viewport())
 
 			# Now draw the histogram. 
 			panel.histogram(phenotyperesiduals,breaks=breaks,type="percent");
@@ -973,7 +1037,6 @@ if(categorical == 0){				#quantitative phenotype
 			panel.rug(x=max(phenotyperesiduals),y=0)
 			panel.rug(x=min(phenotyperesiduals),y=0)
 			upViewport(1);
-			
 			
 			###THIS PLOT IS DONE. NOW START PREPARING INPUT FOR NEXT PLOT
 			if(numgenesplotted < length(allgenes)){
