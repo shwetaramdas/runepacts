@@ -147,7 +147,7 @@ def main():
 			else:
 				defaults['FILTERMAF'] = options['FILTERMAF']
 		if 'PVALUETHRESHOLD' in options.keys():
-			defaults['PVALUETHRESHOLD ']= options['PVALUETHRESHOLD']
+			defaults['PVALUETHRESHOLD']= options['PVALUETHRESHOLD']
 		else:
 			PVALUETHRESHOLD = 0.05
 		if 'MINMAF' in options.keys():
@@ -265,6 +265,7 @@ def main():
 					tabix_command = 'tabix -pvcf -f ' + os.path.join(options['VCFDIR'],f) + " > /dev/null"
 					os.system(tabix_command)
 	
+		vcffiletouse = vcffilename
 		#Then, make a ped file after using the filters provided
 		print "Creating ped file...\n"
 		LOGFILE.write(str(time.asctime( time.localtime(time.time()))) + "\t" + "Creating ped file...\n")
@@ -333,6 +334,60 @@ def main():
 		pedfile.to_csv(options['OUTPREFIX'] + '.pheno.ped', sep="\t",index=False, na_rep='NA')
 		#Covariates have now been added to the ped file and it has been written out
 
+		#INCOMPLETE. if genelist in options, then you want to only work on a subset of genes, or a single gene
+		#Assmuptions: you have a groupfile provided, AND SEPCHR is off
+		if 'GENELIST' in options:
+			#assume you have a groupfile provided
+
+			#get list of genes
+			genestokeep = []
+			
+			if os.path.isfile(os.path.join(options['INPUTDIR'],options['GENELIST'])):
+				genelistfile = open(os.path.join(options['INPUTDIR'],options['GENELIST']))
+				for genelistline in genelistfile:
+					genestokeep.append(genelistline.rstrip())
+				genelistfile.close()
+		
+			else:
+				genestokeep = options['GENELIST'].split(",")
+
+			chrstokeep = []
+			genestart = []
+			geneend = []
+			#get gene coordinates from groupfile
+			groupfile = open(os.path.join(options['INPUTDIR'], options['GROUPFILE']))
+			for groupfileline in groupfile:
+				groupfileline = groupfileline.rstrip()
+				geneline = groupfileline.split()
+				
+				if geneline[0] in genestokeep:
+					chrtokeep = geneline[1].split(":")[0]
+					chrstokeep.append(geneline[1].split(":")[0])
+					geneline = re.sub(r"_./.", "", groupfileline.replace(chrtokeep + ":", "")).split()
+					genepositions = [ int(x) for x in geneline[1:] ]
+					genestart.append(min(genepositions) -1)
+					geneend.append(max(genepositions)+1)
+					break
+			
+			#create bedfile with these positions
+			tobed = pandas.DataFrame(chrstokeep)
+			tobed['START'] = genestart
+			tobed['END'] = geneend
+			
+			tobed.to_csv(options['OUTPREFIX'] + '.genestokeep.bed', sep="\t", index=False, index_label=False)
+			
+			#extract the positions from the bedfile and create a separate vcf
+			tabixcommand = 'zcat ' + vcffilename + ' | grep "#" > ' + options['OUTPREFIX'] + '.genestokeep.vcf'
+			os.system(tabixcommand)
+			tabixcommand = 'tabix ' + vcffilename + ' -B ' + options['OUTPREFIX'] + '.genestokeep.bed >> '  + options['OUTPREFIX'] + '.genestokeep.vcf'
+			print(tabixcommand)
+			os.system(tabixcommand)
+			os.system('bgzip ' + options['OUTPREFIX'] + '.genestokeep.vcf')
+			os.system('tabix -pvcf -f ' + options['OUTPREFIX'] + '.genestokeep.vcf.gz')
+			
+			vcffiletouse = 	options['OUTPREFIX'] + '.genestokeep.vcf.gz' 
+			
+				
 		###create groupfile if one is not already given by the user
 		if 'GROUPFILE' not in options.keys():
 			print "Creating groupfile...\n"
@@ -391,11 +446,6 @@ def main():
 		else:
 			finalgroupfilename = os.path.join(defaults['INPUTDIR'], defaults['GROUPFILE'])
 
-		if 'GENELIST' in options:
-			outputname = random.randrange(1,1000000)
-			getonlygenelistcommand = 'cat ' + finalgroupfilename + ' | grep -wf ' + os.path.join(options['INPUTDIR'], options['GENELIST']) + ' > ' + outputname
-			os.system(getonlygenelistcommand)
-			os.system('mv ' + outputname + ' ' + finalgroupfilename)		
 		
 		############
 	
@@ -405,7 +455,7 @@ def main():
 		markerkinshipcommand = ''
 		for TEST in TESTS:
 			#Check if test includes an emmax test. Then check if kinship file has been provided. If not, then make one.
-			if ('emmax' in TEST.split('=')[1]) or ('emmaxVT' in TEST.split('=')[1]) or ('emmaxCMC' in TEST.split('=')[1])  or ('emmaxSKAT' in TEST.split('=')[1]) or ('mmskat' in TEST.split('=')[1]) or ('q.emmax' in options['SINGLEMARKERTEST']):
+			if ('emmax' in TEST.split('=')[1]) or ('emmaxVT' in TEST.split('=')[1]) or ('emmaxCMC' in TEST.split('=')[1])  or ('emmaxSKAT' in TEST.split('=')[1]) or ('mmskat' in TEST.split('=')[1]) or ('q.emmax' in defaults['SINGLEMARKERTEST']):
 				if 'KINSHIPFILE' in options.keys():
 					if not os.path.exists(os.path.join(defaults['INPUTDIR'],defaults['KINSHIPFILE'])):
 						print("Kinship file specified does not exist")
@@ -416,7 +466,10 @@ def main():
 
 				else:
 					#make kinship file from input using emmax
-					makekinshipcommand = epacts + ' make-kin '  + ' -vcf ' + vcffilename \
+					vcffileforkinship = vcffilename
+					if 'GENELIST' in options:
+						vcffileforkinship = vcffiletouse
+					makekinshipcommand = epacts + ' make-kin '  + ' -vcf ' + vcffileforkinship \
 											+ ' -ped ' + options['OUTPREFIX'] + '.pheno.ped ' + ' -out ' + options['OUTPREFIX'] \
 											+ '.kinf' \
 											+ ' -min-maf 0.01 -min-callrate 0.95' + ' -run 1 > /dev/null'
@@ -426,7 +479,7 @@ def main():
 					if ('emmax' in TEST.split('=')[1]) or ('emmaxVT' in TEST.split('=')[1]) or ('emmaxCMC' in TEST.split('=')[1])  or ('emmaxSKAT' in TEST.split('=')[1]) or ('mmskat' in TEST.split('=')[1]):
 						kinshipcommand = ' -kin ' + options['OUTPREFIX']  + '.kinf '
 			
-			if ('q.emmax' in options['SINGLEMARKERTEST']):
+			if ('q.emmax' in defaults['SINGLEMARKERTEST']):
 				if 'KINSHIPFILE' not in options.keys():
 					
 					markerkinshipcommand = ' -kin ' + options['OUTPREFIX'] + '.kinf' + ' '
@@ -435,7 +488,8 @@ def main():
 
 		#Run single marker epacts test
 		print("Running Single Marker EPACTS test...")
-		epactscommand = epacts + ' single --vcf ' + vcffilename + sepchr + ' -ped ' + options['OUTPREFIX'] + '.pheno.ped ' + '-pheno ' + phenotype + ' ' + covariatecommand + ' -test ' + defaults['SINGLEMARKERTEST'] +  ' ' + markerkinshipcommand  + markerminmaf + ' ' + markermaxmaf + ' ' + markerminmac +  ' -out ' + options['OUTPREFIX'] + '.singlemarker --run 1 > /dev/null'
+
+		epactscommand = epacts + ' single --vcf ' + vcffiletouse + sepchr + ' -ped ' + options['OUTPREFIX'] + '.pheno.ped ' + '-pheno ' + phenotype + ' ' + covariatecommand + ' -test ' + defaults['SINGLEMARKERTEST'] +  ' ' + markerkinshipcommand  + markerminmaf + ' ' + markermaxmaf + ' ' + markerminmac +  ' -out ' + options['OUTPREFIX'] + '.singlemarker --run 1 > /dev/null'
 		print(epactscommand)
 		LOGFILE.write(str(time.asctime(time.localtime(time.time()))) + "\t" + epactscommand + "\n")
 		os.system(epactscommand)		
@@ -524,7 +578,7 @@ def main():
 		for TEST in TESTS:
 			#now create the epacts command
 			epacts_command = epacts + ' ' + TEST.split('=')[0] + ' -test ' + TEST.split('=')[1] + ' -vcf ' \
-											+ vcffilename + ' -pheno ' + phenotype + ' -ped ' \
+											+ vcffiletouse + ' -pheno ' + phenotype + ' -ped ' \
 											+ options['OUTPREFIX'] + '.pheno.ped ' + ' -groupf ' \
 											+ finalgroupfilename + ' -out ' + options['OUTPREFIX'] + '.' + TEST.split('=')[1] \
 											+ minmaf + ' ' + markerminmac + ' ' + covariatecommand + usercommand + sepchr + kinshipcommand + ' -run 1  >/dev/null'
@@ -562,10 +616,12 @@ def main():
 		output = output[output.PVALUE <= float(defaults['PVALUETHRESHOLD'])]
 		genes = output['MARKER_ID'].drop_duplicates()
 		
+		print(output)
+		print(defaults['PVALUETHRESHOLD'])
 		#if output is empty, then ??
 		if len(output) == 0:
 			print("Epacts groupwise test returned no significant results")
-			continue		
+			continue
 		
 		markernames = pandas.DataFrame(markernames)
 		markernames[markernames.columns[0]] = markernames[markernames.columns[0]].str.replace("_",":")
